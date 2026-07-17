@@ -1,13 +1,126 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// Sprint 0 — Data Foundation. Only Migration 000 (Audit Foundation) and
+// Migration 001 (School Foundation) are implemented here — see
+// docs/database/MIGRATION_PLAN.md § 2 for the full sequence and
+// docs/database/PRISMA_IMPLEMENTATION_GUIDE.md for the conventions this
+// file follows (naming, relation mode, datasource split).
+//
+// Once this schema exceeds ~15 models (PRISMA_IMPLEMENTATION_GUIDE.md § 1),
+// split into prisma/schema/ by bounded context. Two models doesn't warrant
+// that yet.
 
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
 }
 
+// Connection URLs are no longer configured here in Prisma 7 — `url`/`directUrl`
+// on the datasource block were removed. Migrations read the connection from
+// prisma.config.ts (DIRECT_URL, unpooled); the runtime client connects via a
+// driver adapter (@prisma/adapter-pg, DATABASE_URL, pooled) constructed in
+// src/lib/db.ts. See docs/database/PRISMA_IMPLEMENTATION_GUIDE.md § 2.
 datasource db {
   provider = "postgresql"
+}
+
+// --- Migration 000: Audit Foundation ---------------------------------------
+// Structurally standalone, no FKs out — see docs/database/MIGRATION_PLAN.md § 1
+// for why AuditLog is built first, not last. Uses a time-ordered ID (UUIDv7)
+// per docs/database/DATABASE_REVIEW.md § 11 — high insert volume, B-tree
+// locality matters. Append-only: no updatedAt, no deletedAt (see
+// docs/domain/DOMAIN_MODEL.md § 9.1). The REVOKE UPDATE/DELETE grant
+// enforcement from docs/database/AUDIT_STRATEGY.md § 2 requires a real
+// Postgres role name this environment doesn't have yet — see this sprint's
+// "Manual Actions Required" note, not applied in this migration.
+// Partitioning (AUDIT_STRATEGY.md § 3) deliberately deferred: created
+// unpartitioned, with no composite primary key or unique constraint that
+// would block converting it to a partitioned table later.
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  SOFT_DELETE
+
+  @@map("audit_action")
+}
+
+model AuditLog {
+  id          String      @id @default(uuid(7))
+  schoolId    String      @map("school_id")
+  entityType  String      @map("entity_type")
+  entityId    String      @map("entity_id")
+  actorUserId String      @map("actor_user_id")
+  action      AuditAction
+  beforeValue Json?       @map("before_value")
+  afterValue  Json?       @map("after_value")
+  timestamp   DateTime    @default(now()) @db.Timestamptz(3)
+
+  @@index([entityType, entityId])
+  @@index([actorUserId, timestamp])
+  @@index([schoolId, timestamp])
+  @@map("audit_logs")
+}
+
+// --- Migration 001: School Foundation ---------------------------------------
+// The schoolId root every later migration hangs off — see
+// docs/database/MIGRATION_PLAN.md § 2. School.schoolId is the primary key
+// field name itself (not a generic `id`), since every other table's FK to
+// School is named schoolId — see docs/domain/DATABASE_SCHEMA.md § 3.
+// SchoolStatus's exact values aren't specified in docs/domain/DOMAIN_MODEL.md
+// or docs/domain/DATABASE_SCHEMA.md (only AcademicYearStatus's ACTIVE|CLOSED
+// is spelled out there) — ACTIVE/INACTIVE chosen here as the minimal
+// two-state default consistent with this system's current single-tenant
+// scope; INACTIVE has no application behavior yet.
+
+enum SchoolStatus {
+  ACTIVE
+  INACTIVE
+
+  @@map("school_status")
+}
+
+enum AcademicYearStatus {
+  ACTIVE
+  CLOSED
+
+  @@map("academic_year_status")
+}
+
+model School {
+  schoolId         String       @id @default(cuid()) @map("school_id")
+  name             String
+  shortName        String?      @map("short_name")
+  affiliationBoard String?      @map("affiliation_board")
+  udiseCode        String?      @unique @map("udise_code")
+  status           SchoolStatus @default(ACTIVE)
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  academicYears AcademicYear[]
+
+  @@map("schools")
+}
+
+model AcademicYear {
+  id              String             @id @default(cuid())
+  schoolId        String             @map("school_id")
+  school          School             @relation(fields: [schoolId], references: [schoolId])
+  label           String
+  startDate       DateTime           @map("start_date") @db.Timestamptz(3)
+  endDate         DateTime           @map("end_date") @db.Timestamptz(3)
+  isCurrent       Boolean            @default(false) @map("is_current")
+  // Exactly one true per school — schema-enforced via a partial unique index
+  // (WHERE is_current = true), hand-added in this migration's SQL, not
+  // expressible in schema.prisma syntax. See
+  // docs/database/CONSTRAINT_STRATEGY.md § 3.
+  status          AcademicYearStatus @default(ACTIVE)
+  promotionPolicy Json               @map("promotion_policy")
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([schoolId, label])
+  @@index([schoolId, isCurrent])
+  @@map("academic_years")
 }

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { AnimatedBackground } from "@/components/website/AnimatedBackground";
 import { StatStrip } from "@/components/website/StatStrip";
 import { Caption, Display, Text } from "@/components/ui/typography";
+import { SCHOOL } from "@/config/school";
 import { fadeInUp, staggerContainer } from "@/lib/motion";
 
 export function Hero() {
@@ -24,7 +25,7 @@ export function Hero() {
         variants={staggerContainer(reduced)}
       >
         <motion.div variants={fadeInUp(reduced)}>
-          <Caption>Vidyadhar Nagar, Jaipur</Caption>
+          <Caption>{SCHOOL.locationShort}</Caption>
         </motion.div>
 
         <motion.div variants={fadeInUp(reduced, 0.05)}>
@@ -33,8 +34,8 @@ export function Hero() {
 
         <motion.div variants={fadeInUp(reduced, 0.1)}>
           <Text variant="lead" className="mx-auto mt-6 max-w-2xl">
-            Pant Public School pairs attentive teaching with a modern, digital-first campus — built
-            around how families in Vidyadhar Nagar actually live and learn.
+            {SCHOOL.name} pairs attentive teaching with a modern, digital-first campus — built
+            around how families in {SCHOOL.locationShort} actually live and learn.
           </Text>
         </motion.div>
 

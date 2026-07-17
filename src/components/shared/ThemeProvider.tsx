@@ -2,6 +2,8 @@
 
 import { createContext, useCallback, useEffect, useState } from "react";
 
+import { BRANDING } from "@/config/branding";
+
 type Theme = "light" | "dark";
 
 interface ThemeContextValue {
@@ -12,7 +14,7 @@ interface ThemeContextValue {
 
 export const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-const STORAGE_KEY = "pps-theme";
+const STORAGE_KEY = BRANDING.theme.storageKey;
 
 function applyTheme(theme: Theme) {
   document.documentElement.classList.toggle("dark", theme === "dark");

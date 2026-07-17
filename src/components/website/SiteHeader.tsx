@@ -8,7 +8,8 @@ import { useState } from "react";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { LanguageSwitch } from "@/components/website/LanguageSwitch";
 import { MobileNav } from "@/components/website/MobileNav";
-import { NAV_LINKS } from "@/components/website/nav-links";
+import { NAV_LINKS } from "@/config/navigation";
+import { SCHOOL } from "@/config/school";
 import { cn } from "@/lib/utils";
 
 export function SiteHeader() {
@@ -31,7 +32,7 @@ export function SiteHeader() {
     >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6 lg:px-8">
         <Link href="/" className="text-foreground text-lg font-semibold tracking-tight">
-          Pant Public School
+          {SCHOOL.name}
         </Link>
 
         <nav className="hidden items-center gap-1 lg:flex" aria-label="Primary">

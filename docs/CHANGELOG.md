@@ -12,6 +12,540 @@ Nothing yet.
 
 ---
 
+## [0.16.0] — 2026-07-18 — Sprint 0: Data Foundation
+
+The first real application code and database schema — `AuditLog` (Migration 000) and `School`/`AcademicYear` (Migration 001) only, per [D-027](./DECISIONS.md#d-027--sprint-0-data-foundation-migrations-000-001-implemented-prisma-7-config-model-schoolstatusseed-placeholders). No later migration, API route, or UI built. Not applied to a live database — none is available in this environment; schema-validated and SQL-generated (`prisma migrate diff`) only.
+
+### Added
+
+- `prisma/schema.prisma` — `AuditLog` (Migration 000: `id` (UUIDv7), `schoolId`, `entityType`, `entityId`, `actorUserId`, `action` (`AuditAction` enum), `beforeValue`/`afterValue` (JSON), `timestamp`) and `School`/`AcademicYear` (Migration 001), following `docs/database/MIGRATION_PLAN.md` and `docs/database/PRISMA_IMPLEMENTATION_GUIDE.md`'s naming (`@@map`/`@map` to `snake_case`), type-mapping (`timestamptz`, `jsonb`), and relation-mode conventions.
+- `prisma/migrations/20260718000000_audit_foundation/` and `prisma/migrations/20260718000100_school_foundation/` — hand-verified SQL, including a hand-added partial unique index (`academic_years_one_current_per_school`, `WHERE is_current = true`) not expressible in `schema.prisma` syntax, per `CONSTRAINT_STRATEGY.md § 3`.
+- `src/lib/db.ts` — Prisma Client singleton, driver-adapter pattern (`@prisma/adapter-pg`), hot-reload-safe in development.
+- `src/lib/env.ts` — Zod-validated environment variables (`DATABASE_URL`, `DIRECT_URL`, `NODE_ENV`), scoped to what this codebase reads today.
+- `src/lib/db-utils.ts` — `checkDatabaseHealth()` (not wired into any route) and `writeAuditLog()` (accepts a transaction client, per `TRANSACTION_BOUNDARIES.md § 1`).
+- `prisma/seed.ts` — seeds one `School` and one `AcademicYear` (`isCurrent = true`) from `src/config/school.ts`.
+- `@prisma/adapter-pg`, `tsx` — new dependencies required by Prisma 7's driver-adapter connection model and the seed script's standalone execution.
+
+### Fixed
+
+- `prisma.config.ts` only loaded `.env`, never `.env.local` — a real bug (found before it could silently break a future `prisma migrate deploy`) against `.env.example`'s own documented convention. Now loads `.env.local` then `.env` explicitly; the same fix applied to `prisma/seed.ts`, which also runs standalone via `tsx`.
+
+### Changed
+
+- `.env.example` — added `DIRECT_URL` (unpooled, used by Prisma Migrate) alongside the existing pooled `DATABASE_URL`.
+- `prisma.config.ts` — `datasource.url` now reads `DIRECT_URL`, not `DATABASE_URL`; added `migrations.seed`.
+- `docs/database/PRISMA_IMPLEMENTATION_GUIDE.md` § 2 — corrected: Prisma 7 removed `url`/`directUrl` from `schema.prisma`'s `datasource` block; connection config now splits between `prisma.config.ts` and a runtime driver adapter.
+
+### Known Issues
+
+- No live PostgreSQL is available in the current environment — migrations are schema-validated and SQL-generated only, not applied.
+- `AuditLog`'s append-only enforcement (`REVOKE UPDATE, DELETE ...`) and partitioning decision are both deferred — the former needs a real Postgres role name not yet chosen; the latter per `AUDIT_STRATEGY.md § 3`'s explicit fallback.
+- Seeded `AcademicYear` dates and `promotionPolicy` are provisional (computed April–March window, explicitly-unconfigured policy marker) — `src/config/school.ts`'s `academicSession` is still an unconfirmed placeholder.
+
+---
+
+## [0.15.1] — 2026-07-18 — Pre-Prisma Consistency Verification
+
+Documentation-only verification and fix pass across `docs/domain/` and `docs/database/` — no Prisma schema, SQL, migration, or application code touched.
+
+### Fixed
+
+- `docs/domain/DATABASE_SCHEMA.md` — applied the three schema gaps [D-025](./DECISIONS.md#d-025--physical-database-review-time-ordered-ids-for-high-volume-tables-partial-unique-indexes-partitioned-audit-log) had flagged but deferred: `Section` and `Subject` now have their missing uniqueness constraints; `TransferCertificate.tcNumber` is now `@@unique([schoolId, tcNumber])` (with a direct `schoolId` field added, since a same-table unique constraint can't span a join) instead of incorrectly global.
+- `docs/domain/DATABASE_SCHEMA.md` — `PromotionRecord.basis` and `AuditLog.action` promoted from plain strings to native enums, matching `ENUM_STRATEGY.md`'s own recommendations the schema hadn't yet incorporated.
+- `docs/domain/DATABASE_SCHEMA.md` — `TeacherAssignment` gained its missing subject-assignment uniqueness constraint; `AdmissionApplication.resultingStudentId` gained its missing `@relation` declaration (every other FK field in the document had one; this one didn't).
+- `docs/domain/DATABASE_SCHEMA.md` § 2 — the "every model uses `cuid()`" convention now notes its three documented exceptions (`AttendanceRecord`, `MarksRecord`, `AuditLog` → time-ordered IDs), previously stated only in `DATABASE_REVIEW.md`.
+- `docs/domain/ERD.md` — removed a `DocumentRecord` diagram edge that contradicted the document's own "Reading Notes" claim that `DocumentRecord` is "intentionally absent" from the diagram; the edge also misrepresented the entity's actual polymorphic `ownerType`/`ownerId` design as a direct FK.
+- `docs/domain/DATA_DICTIONARY.md` — updated in lockstep with every `DATABASE_SCHEMA.md` change above (new `schoolId` row on `TransferCertificate`, `basis`/`action` type changes, `AcademicYear.isCurrent`/`TeacherAssignment` constraint notes).
+
+### Added
+
+- `docs/database/TRANSACTION_BOUNDARIES.md` — a new 12th database document. No prior document systematically addressed which multi-table writes (including a mutation's own `AuditLog` entry) must be atomic — a genuine, load-bearing gap surfaced by cross-referencing `WORKFLOWS.md` against `AUDIT_STRATEGY.md`, not invented scope. Covers every multi-table write in the schema, batch-size reasoning for attendance/marks submission, why Academic Year Rollover should not be one giant transaction, and check-then-act race conditions resolved via unique constraints rather than application-level locking.
+
+### Verified, No Change Needed
+
+- All 29 entities present and named identically across `DATABASE_SCHEMA.md`, `DOMAIN_MODEL.md`, and `DATA_DICTIONARY.md`.
+- Every "Served by" index citation in `QUERY_PATTERNS.md` matches a real row in `INDEXING_STRATEGY.md`; every index in `INDEXING_STRATEGY.md` has an explanation, whether or not it also appears as a full SQL example.
+- Every major lifecycle in `BUSINESS_RULES.md` has a corresponding event in `EVENT_MODEL.md`.
+- `MIGRATION_PLAN.md`'s 11-migration sequence is dependency-correct (some "Depends on" notes are transitively-sufficient rather than maximally explicit — not a functional defect).
+- Document overlap between `DATABASE_REVIEW.md`/`INDEXING_STRATEGY.md` and `CONSTRAINT_STRATEGY.md`/`SOFT_DELETE_STRATEGY.md` is a deliberate, minimal "define once, apply locally" pattern — no merge warranted.
+
+### Changed
+
+- `docs/DECISIONS.md` — added [D-026](./DECISIONS.md#d-026--pre-prisma-consistency-verification-transaction-boundaries-added-schema-gaps-closed).
+- `docs/database/README.md` — doc map updated for `TRANSACTION_BOUNDARIES.md`.
+- `docs/database/PRISMA_IMPLEMENTATION_GUIDE.md § 9` — checklist updated to reflect the now-closed schema gaps and a new transaction-boundaries check item.
+
+### Known Issues
+
+- None — documentation-only change; no build/typecheck/lint impact.
+
+---
+
+---
+
+## [0.15.0] — 2026-07-18 — Physical Database Review
+
+Architecture only — no Prisma schema, SQL, or migration created, per this task's own "not implementation" instruction.
+
+### Added
+
+- `docs/database/README.md` — overview, scope, relationship to `docs/domain/`, self review
+- `docs/database/DATABASE_REVIEW.md` — entity-by-entity physical review of Student, Guardian, Academic Year, Section, Subject, Teacher Assignment, Enrollment, Attendance, Examination, Transfer Certificate, and Promotion; direct answers to the four required questions (why Attendance/Results reference Enrollment not Student, which tables are append-only, which are never updated/deleted); three schema gaps found and flagged
+- `docs/database/INDEXING_STRATEGY.md` — every index the schema needs, each tied to the query it serves
+- `docs/database/CONSTRAINT_STRATEGY.md` — database-enforced vs. application-enforced rules, real (not emulated) foreign keys, the partial-unique-index pattern, `CHECK` constraints, RLS considered and deferred to Epic H
+- `docs/database/ENUM_STRATEGY.md` — native Postgres enum vs. plain string vs. lookup table, field by field
+- `docs/database/AUDIT_STRATEGY.md` — `AuditLog` append-only enforcement via role grant revocation, partitioning tradeoff, retention policy, PII redaction in before/after snapshots
+- `docs/database/SOFT_DELETE_STRATEGY.md` — three soft-delete categories, the partial-unique-index requirement, cascade behavior on deactivation
+- `docs/database/QUERY_PATTERNS.md` — 10 illustrative query patterns tied directly to `WORKFLOWS.md`/`REPORTING_MODEL.md`
+- `docs/database/MIGRATION_PLAN.md` — 11 small, independent, ordered migrations (000–010); `AuditLog` moved first, not last, correcting the domain model's own conceptual ordering
+- `docs/database/PERFORMANCE_GUIDELINES.md` — 15-year growth projections (`AttendanceRecord`: 600K–6.6M rows for one school), connection pooling, pagination, caching, N+1 avoidance
+- `docs/database/PRISMA_IMPLEMENTATION_GUIDE.md` — schema file organization, naming conventions, migration workflow, relation mode, seeding, type-mapping notes, a ready-for-Prisma checklist
+
+### Key Design Decisions
+
+- `AttendanceRecord`, `MarksRecord`, and `AuditLog` — the three genuinely high-volume, append-heavy tables — should use time-ordered IDs (ULID/UUIDv7) instead of the domain model's uniform `cuid()`; every other table stays `cuid2`.
+- `AcademicYear.isCurrent` and `TeacherAssignment.isClassTeacher`'s "exactly one per scope" rules should be schema-enforced via Postgres partial unique indexes, not left as application-only invariants.
+- Every unique constraint on a soft-deletable table must be scoped `WHERE "deletedAt" IS NULL`.
+- `AuditLog` should be partitioned by `timestamp` from its first migration, and that migration should ship first (Migration 000), not last.
+- `AttendanceRecord`/`MarksRecord` stay mutable-with-full-audit-trail rather than fully event-sourced — a deliberate scale judgment, not an oversight.
+
+### Schema Gaps Found (Flagged, Not Fixed Here)
+
+- `Section` missing `@@unique([classId, academicYearId, name])`.
+- `Subject` missing `@@unique([schoolId, name])`.
+- `TransferCertificate.tcNumber` drafted globally unique instead of `@@unique([schoolId, tcNumber])` — would break at Epic H's first second-tenant onboarding.
+
+Corrections belong in `docs/domain/DATABASE_SCHEMA.md`'s own next edit, not this review.
+
+### Changed
+
+- `docs/DECISIONS.md` — added [D-025](./DECISIONS.md#d-025--physical-database-review-time-ordered-ids-for-high-volume-tables-partial-unique-indexes-partitioned-audit-log).
+- `docs/PROJECT_CONTEXT.md` — §2 current phase updated; §5 added the review as a completed architecture artifact; §14 doc map updated.
+- `docs/ROADMAP_V2.md § Epic B` — physical database review listed as a second completed architecture milestone alongside the domain model; first-Prisma-models bullet now cross-references the migration plan.
+
+### Known Issues
+
+- None — documentation-only change; no source files touched, no build/typecheck/lint impact.
+
+---
+
+## [0.14.1] — 2026-07-17 — Website Engine v1.0 Release Readiness Review
+
+Review only — no new features, pages, or architecture. Two genuine defects found and fixed; everything else is a finding, not a change. Full report: [IMPLEMENTATION_LOG.md](./IMPLEMENTATION_LOG.md).
+
+### Fixed
+
+- `src/components/website/Hero.tsx` — the homepage Hero's lead paragraph hardcoded "Vidyadhar Nagar" instead of interpolating `SCHOOL.locationShort`, even though the same component already imports and uses `SCHOOL` two lines above. A second tenant with a different location would have silently shown Pant Public School's location in this sentence.
+- `src/components/website/pages/About/metadata.ts` — the page's SEO description hardcoded "Vidyadhar Nagar, Jaipur" instead of interpolating `SCHOOL.locationShort`, visible in search results and social share previews for a future tenant.
+
+### Verified, No Change Needed
+
+- Zero remaining hardcoded school-identity literals outside `src/config/` and the guarded, production-404'd `/dev/playground` sandbox.
+- All 17 Marketing Section Library components match `COMPONENT_INVENTORY.md` exactly, by name, with no drift.
+- `prisma/schema.prisma` genuinely has zero models — `src/generated/prisma`'s existence is a correctly `.gitignore`d local Prisma Client build artifact, not evidence of undocumented schema work.
+- No `console.log`, `TODO`/`FIXME`, or `any`-typed hand-written code anywhere in `src/` (the only `any` usages are inside auto-generated Prisma client internals).
+- `src/features/` does not exist; `nav-links.ts` was correctly deleted; role-segmented `components/{admin,shared,teacher,ui,website}` structure intact.
+- `(admin)`, `(auth)`, `(teacher)`, and `api/` route groups are already scaffolded (empty, Phase 0B.1) — Epic B can begin without restructuring `src/app/`.
+- Every internal link across all 7 pages resolves to either a built route or a consistently documented, intentionally-unbuilt one (`/gallery`, `/notices`, `/admissions/enquiry`, `/login`) — no undocumented broken link found.
+- Fresh `pnpm typecheck` / `lint` / `build` all clean before and after the two fixes above; bundle sizes unchanged (behavior-neutral fix).
+
+### Non-Blocking Findings (not fixed — logged for future awareness)
+
+- The practice of citing a `TXT-`/`IMG-`/`DOC-` registry ID directly inside a page's own bracketed placeholder text only began with the School Life Experience milestone. `About`, `Academics`, `Admissions`, and `Campus`'s placeholders remain fully tracked in `TEXT_REGISTRY.md` via file+line citation (the framework's original convention) but don't self-cite inline. Not a functional defect — retrofitting is optional future cleanup, not required before Epic B.
+
+---
+
+## [0.14.0] — 2026-07-17 — Document Center Experience
+
+### Added
+
+- `/documents` — seventh public page, `src/components/website/pages/DocumentCenter/` (`content.ts`, `sections.ts`, `page.tsx`, `metadata.ts`, `README.md`, `index.ts`), following the [D-016](./DECISIONS.md#d-016--page-composite-folder-pattern-componentswebsitepagespage--thin-route-re-export) page-composite pattern. New `src/app/(public)/documents/` route directory (didn't previously exist, not even as a `.gitkeep`). 9 sections: Page Hero, Document Categories Overview, Admission Documents, Academic Documents, Mandatory Public Disclosures, School Policies, Circulars & Notices, FAQ, Contact CTA. No submission form — informational only.
+- Four document categories (Admission Documents, Academic Documents, Mandatory Public Disclosures, School Policies) rendered from a single data array (`DOCUMENT_CENTER_CATEGORIES`) via `.map()`, not hand-written per-category JSX — see [D-024](./DECISIONS.md#d-024--document-center-renders-categories-from-a-data-array-not-hand-written-jsx-blocks).
+- `docs/onboarding/DOCUMENT_REGISTRY.md` — populated for the first time: 13 items (`DOC-001`–`DOC-013`) across the four categories, replacing its prior "zero requirements identified" finding.
+- `docs/onboarding/TEXT_REGISTRY.md` — new "Document Center" section, 6 new items (`TXT-066`–`TXT-071`).
+- `docs/onboarding/CONTENT_COLLECTION_GUIDE.md` — "Documents" section populated with real collection guidance, replacing its prior "nothing is currently required here" placeholder.
+
+### Key Design Decisions
+
+- Every document is a named, empty slot citing its own `DOCUMENT_REGISTRY.md` ID — no filename was invented anywhere.
+- Mandatory Public Disclosures names real, well-known Indian-school disclosure categories (affiliation/recognition certificate, trust registration, fire & building safety certificate, fee structure) without asserting they're confirmed requirements for this specific school — a `Callout` states plainly that applicability depends on `SCHOOL.affiliation`, itself still unconfirmed.
+- Circulars & Notices explains a future capability (the not-yet-built `/notices` route) rather than fabricating a sample notice.
+- No new Marketing Section Library component was needed — every category's document list reuses `FeatureGrid`'s existing "pending-asset card citing a registry ID" pattern already established for photos, now applied to documents for the first time.
+
+### Changed
+
+- `docs/DECISIONS.md` — added [D-024](./DECISIONS.md#d-024--document-center-renders-categories-from-a-data-array-not-hand-written-jsx-blocks) (data-driven category rendering).
+- `docs/onboarding/CONTENT_DASHBOARD.md` — all readiness math recalculated: 78 → 97 total content items (a new "Document Items" column added to Per-Page Readiness), 72 → 91 Active, new Structural Completeness row for `/documents`.
+- `docs/COMPONENT_INVENTORY.md` — `DocumentCenter` added to the Website Pages table (now 7 pages).
+- `docs/ROUTES.md` — `/documents` row updated from an unbuilt placeholder to Built status.
+- `docs/onboarding/README.md` — document-registry row updated to reflect real content; removed two other stale hardcoded item counts that had drifted since the CRF's creation.
+
+### Content Decisions
+
+- No government document, policy, or downloadable file was invented — every one is a bracketed placeholder citing a `DOCUMENT_REGISTRY.md` ID.
+- Document category and type names (e.g., "Academic Calendar," "Fee Structure") are treated as generic, real document types — safe to state in full — while their actual contents remain fully bracketed.
+- No navigation change was needed — `"Downloads"` (labeling `/documents`) was already present in `NAV_LINKS` since Phase 1A.
+
+### Verified
+
+- Isolated headless Chrome instance (fresh temp profile, dedicated debug port), independent dev server on a separate port — the pre-existing dev server on port 3000 was left untouched throughout.
+- Desktop (1440×900), tablet (768×1024), and mobile (375×812) viewports: single `<h1>`, correct heading hierarchy with no skipped levels across 8 sections' worth of nested content, single `<main>`, valid JSON-LD, zero console errors/exceptions, no horizontal overflow, "Downloads" nav link resolving correctly at every viewport.
+
+### Known Issues
+
+- None — `pnpm run typecheck`, `lint`, and `build` all clean; `/documents` prerenders static.
+
+---
+
+## [0.13.0] — 2026-07-17 — Contact & Visit Experience
+
+### Added
+
+- `/contact` — sixth public page, `src/components/website/pages/Contact/` (`content.ts`, `sections.ts`, `page.tsx`, `metadata.ts`, `README.md`, `index.ts`), following the [D-016](./DECISIONS.md#d-016--page-composite-folder-pattern-componentswebsitepagespage--thin-route-re-export) page-composite pattern. 9 sections: Page Hero, Contact Overview, Office Information, School Timings, Visit the Campus, Map Placeholder, FAQ, Admission Enquiry CTA, Contact Summary. No submission form — informational only, forwards admission-related contact to `/admissions/enquiry`.
+- `DataTable` — 17th Marketing Section Library component (`src/components/website/sections/DataTable/`), promoted from `Admissions`'s page-local helper — see [D-023](./DECISIONS.md#d-023--datatable-promoted-from-page-local-helper-to-shared-component).
+- `docs/onboarding/TEXT_REGISTRY.md` — new "Contact" section, 7 new items (`TXT-059`–`TXT-065`).
+- `docs/onboarding/IMAGE_REGISTRY.md` — 1 new item (`IMG-013`, location map/campus exterior photo).
+
+### Changed
+
+- `Admissions/page.tsx` refactored to import `DataTable` from the shared library instead of defining it locally — behavior-neutral.
+- `Admissions/README.md` — "Components Reused" section updated to reflect the promotion; removed the now-fulfilled "promote if a second page needs it" Future Enhancement.
+- Six previously-**Latent** `TEXT_REGISTRY.md` cross-cutting items (`TXT-002`, `TXT-003`, `TXT-004`, `TXT-008`, `TXT-009`, `TXT-010` — address, email, phone, emergency contact, office hours, visit hours) reclassified **Active**, now visible at `/contact`; priorities reassessed given real visibility (phone/email/office hours raised to P0).
+- `docs/onboarding/CONTENT_DASHBOARD.md` — all readiness math recalculated: 70 → 78 total content items, 59 → 72 Active, per-page/per-category/priority tables updated, new Structural Completeness row for `/contact`.
+- `docs/DECISIONS.md` — added [D-023](./DECISIONS.md#d-023--datatable-promoted-from-page-local-helper-to-shared-component) (DataTable promotion).
+- `docs/COMPONENT_INVENTORY.md` — `DataTable` added to the Marketing Section Library table (now 17 components); `Contact` added to the Website Pages table (now 6 pages); `Admissions`'s row updated to reflect the promotion.
+- `docs/ROUTES.md` — `/contact` row updated from an unbuilt placeholder to Built status.
+
+### Content Decisions
+
+- No contact detail, coordinate, map, office timing, or testimonial was invented — every fact is read directly from `src/config/{school,contact}.ts`, all still bracketed placeholders.
+- The Map Placeholder section deliberately does not embed a map, per explicit task instruction — a single `Callout` cites `IMAGE_REGISTRY.md § IMG-013` and notes `CONTACT.googleMapsUrl` is `null`.
+- Contact Overview's badges (location, classes offered) are the only genuinely real facts on the page — both already-confirmed `SCHOOL` config values reused from elsewhere, not new claims.
+- The Contact Summary's social-channels note is a Process Note (Engineering-owned), stating the true current fact that `src/config/social.ts` → `SOCIAL_LINKS` are all `null` — not content for School Admin to write.
+- No navigation change was needed — `"Contact"` was already present in `NAV_LINKS` since Phase 1A, pointing at a route that 404'd until this page existed.
+
+### Verified
+
+- Isolated headless Chrome instance (fresh temp profile, dedicated debug port), independent dev server on a separate port — the pre-existing dev server on port 3000 was left untouched throughout.
+- Desktop (1440×900), tablet (768×1024), and mobile (375×812) viewports: single `<h1>`, correct heading hierarchy with no skipped levels, single `<main>`, valid JSON-LD, zero console errors/exceptions, no horizontal overflow, "Contact" nav link resolving correctly at every viewport.
+
+### Known Issues
+
+- None — `pnpm run typecheck`, `lint`, and `build` all clean; `/contact` prerenders static.
+
+---
+
+## [0.12.0] — 2026-07-17 — School Domain Model
+
+Architecture and documentation only — no Prisma models, migrations, API routes, or UI components created, per this task's own "architecture only" instruction.
+
+### Added
+
+- `docs/domain/README.md` — overview, scope, research basis (RTE Act 2009 + Amendment 2019, UDISE+, TC field requirements), future-integration-seam policy
+- `docs/domain/DOMAIN_MODEL.md` — ~29 entities across 7 bounded contexts (School & Academic Structure, People & Identity, Admission, Enrollment & Progression, Attendance, Examination, System/Cross-Cutting), each with Purpose/Owner/Relationships/Future dependencies/Audit requirements/Soft delete strategy/Configuration
+- `docs/domain/ERD.md` — full mermaid entity relationship diagram + cardinality reference table
+- `docs/domain/DATABASE_SCHEMA.md` — illustrative Prisma-like pseudo-schema for every entity (explicitly not an executable schema)
+- `docs/domain/DATA_DICTIONARY.md` — field-by-field type/nullability/constraints/PII classification, including a DPDP Act 2023-aware Minor PII category
+- `docs/domain/BUSINESS_RULES.md` — every governing rule, classified Code (universal) vs. Configuration (per-school/per-state), covering admission eligibility, RTE quota, attendance, examinations/grading, promotion/detention policy, transfer, data protection, and teacher-assignment compliance ratios
+- `docs/domain/WORKFLOWS.md` — 8 mermaid flowcharts covering admission, daily attendance, marks entry, examination setup, promotion, transfer/withdrawal, teacher onboarding, and academic-year rollover
+- `docs/domain/EVENT_MODEL.md` — 12 named domain events with payloads and today's-vs-future consumers (no event bus implemented)
+- `docs/domain/PERMISSION_MATRIX.md` — role × entity × action matrix for Guest/Admin/Teacher (V1) and Parent/Student (Future, explicitly unbuilt)
+- `docs/domain/REPORTING_MODEL.md` — V1 report catalog, future compliance reports (PTR, teacher qualification, UDISE+ export), and the Epic G analytics tie-in
+- `docs/domain/API_BOUNDARIES.md` — 9 logical module boundaries, their dependency graph, and where a future external API layer would begin
+
+### Key Design Decisions
+
+- `Enrollment` (one row per student per academic year) is the structural hub every year-scoped entity keys off — not a mutable "current class" field on `Student` — see [D-022](./DECISIONS.md#d-022--school-domain-model-board-agnostic-enrollment-centric-rte-aware).
+- Promotion/detention policy, admission-age cutoffs, grading scales, and board affiliation are all `School`/`AcademicYear`-level configuration, never hardcoded — Rajasthan has reintroduced Class 5/8 detention under the RTE Amendment Act 2019; other states have not.
+- `Student.udisePen` and `School.udiseCode` are modeled explicitly as near-universal Indian schooling compliance facts, not Pant-Public-School-specific ones.
+- Fee, Transport, Parent Portal, and Student Portal are named only as attachment seams (which entity a future module would reference), not designed — each remains gated behind [PROJECT_GUARDRAILS.md § 2](./PROJECT_GUARDRAILS.md#2-module-approval-process)'s Module Approval Process.
+
+### Changed
+
+- `docs/DECISIONS.md` — added [D-022](./DECISIONS.md#d-022--school-domain-model-board-agnostic-enrollment-centric-rte-aware)
+- `docs/PROJECT_CONTEXT.md` — §2 current phase updated; §5 added the domain model as a completed (architecture-only) artifact; §14 doc map updated
+- `docs/ROADMAP_V2.md § Epic B` — domain model listed as a completed architecture milestone; first-Prisma-models bullet now cross-references the design reference
+
+### Known Issues
+
+- None — documentation-only change; no build/typecheck/lint impact expected (no source files touched), verified by re-running the full pipeline anyway per established practice.
+
+---
+
+## [0.11.0] — 2026-07-17 — School Life Experience
+
+### Added
+
+- `/school-life` — fifth public page, `src/components/website/pages/SchoolLife/` (`content.ts`, `sections.ts`, `page.tsx`, `metadata.ts`, `README.md`, `index.ts`), following the [D-016](./DECISIONS.md#d-016--page-composite-folder-pattern-componentswebsitepagespage--thin-route-re-export) page-composite pattern. 10 sections: Page Hero, Life Beyond Classrooms (narrative), Annual Events, Sports & Competitions, Cultural Activities, Celebrations, Student Achievements, Gallery Preview, Parent Testimonial, CTA.
+- `Prose` — 16th Marketing Section Library component (`src/components/website/sections/Prose/`), promoted from `Campus`'s page-local helper — see [D-020](./DECISIONS.md#d-020--prose-promoted-from-page-local-helper-to-shared-component).
+- `"School Life"` added to `src/config/navigation.ts`'s `NAV_LINKS`, between Campus and Admissions.
+- `docs/onboarding/TEXT_REGISTRY.md` — 18 new items (`TXT-041`–`TXT-058`), generated from `SchoolLife/content.ts`'s bracketed placeholders.
+- `docs/onboarding/IMAGE_REGISTRY.md` — 4 new items (`IMG-009`–`IMG-012`), Gallery Preview categories.
+
+### Changed
+
+- `Campus/page.tsx` refactored to import `Prose` from the shared library instead of defining it locally — behavior-neutral (confirmed via build output: page weight unchanged at 657B).
+- `Campus/README.md` — "Components Reused" section updated to reflect the promotion.
+- `docs/onboarding/CONTENT_DASHBOARD.md` — all readiness math recalculated: 48 → 70 total content items, 37 → 59 Active, per-page/per-category/priority tables updated.
+- `docs/DECISIONS.md` — added [D-020](./DECISIONS.md#d-020--prose-promoted-from-page-local-helper-to-shared-component) (Prose promotion) and [D-021](./DECISIONS.md#d-021--school-life-experience-ships-with-deliberate-component-variety-not-a-repeated-gallery-grid) (deliberate component variety over a repeated gallery grid).
+- `docs/COMPONENT_INVENTORY.md` — `Prose` added to the Marketing Section Library table (now 16 components); `SchoolLife` added to the Website Pages table (now 5 pages); `Campus`'s row updated to reflect the `Prose` promotion.
+- `docs/ROUTES.md` — `/school-life` row added; public site header nav list updated.
+
+### Content Decisions
+
+- Life Beyond Classrooms is real, published values-statement copy (same category as `About`'s Mission/Vision) — not bracketed.
+- Annual Events, Sports & Competitions, Cultural Activities, Celebrations, and Student Achievements are fully bracketed placeholders, per explicit task instruction — unlike Academics' curriculum categories, these genuinely vary school to school and no achievement, event, or activity was invented.
+- Gallery Preview follows `Campus`'s established four-category-card + disclaimer pattern, with captions citing the specific new `IMAGE_REGISTRY.md` IDs (`IMG-009`–`IMG-012`) directly.
+- Parent Testimonial placeholder explicitly states it is not a paraphrase of anything real, guarding against a future careless copy-paste being mistaken for a genuine quote.
+
+### Verified
+
+- Isolated headless Chrome instance (fresh temp profile, dedicated debug port), independent dev server on a separate port — the pre-existing dev server on port 3000 was left untouched throughout, per the session's permanent browser-safety rules.
+- Desktop (1440×900), tablet (768×1024), and mobile (375×812) viewports: single `<h1>`, correct heading hierarchy with no skipped levels, single `<main>`, valid JSON-LD, zero console errors/exceptions, no horizontal overflow, "School Life" present in nav markup with the correct `href` at every viewport.
+
+### Known Issues
+
+- None — `pnpm run typecheck`, `lint`, and `build` all clean (11 routes); `/school-life` prerenders static at 657B, matching every other page composite's footprint.
+
+---
+
+## [0.10.0] — 2026-07-17 — Content Readiness Framework (CRF)
+
+Documentation and process only — no code changes, no UI changes.
+
+### Added
+
+- `docs/onboarding/README.md` — the CRF's own overview, status lifecycle, content-vs-process-note distinction, and Self Review
+- `docs/onboarding/TEXT_REGISTRY.md` — 40 text content items, generated by grepping every bracketed placeholder in `src/config/school.ts`, `src/config/contact.ts`, and all four pages' `content.ts` files
+- `docs/onboarding/IMAGE_REGISTRY.md` — 8 image content items, including the favicon (currently the default Next.js scaffold icon) and all four Campus Gallery Preview placeholders
+- `docs/onboarding/DOCUMENT_REGISTRY.md` and `docs/onboarding/VIDEO_REGISTRY.md` — both genuinely empty; no page references any document or video content, and both explicitly say so rather than being padded with invented future items
+- `docs/onboarding/CONTENT_DASHBOARD.md` — overall/per-page/per-category readiness, calculated by counting registry rows, not estimated; includes a "Structural Completeness" table (100% for all four pages) alongside the 0% content-readiness baseline, and an Active/Latent/Silently-absent breakdown
+- `docs/onboarding/CONTENT_COLLECTION_GUIDE.md` — plain-language photography/collection guidance for school staff
+- `docs/onboarding/SCHOOL_ONBOARDING_CHECKLIST.md` — five-phase onboarding lifecycle, written generically enough to reuse for a future second school
+- `docs/onboarding/GO_LIVE_CHECKLIST.md` — the narrow, final pre-launch gate, keyed to the dashboard's 16 P0 items
+
+### Content Findings
+
+- 48 total content requirements identified across the four built pages — 40 text, 8 image, 0 document, 0 video.
+- 4 of the 40 text items are not content to collect at all — they're internal `Callout` "Before this goes live" process notes, owned by Engineering (removed on resolution), not School Admin.
+- 10 of the 48 items are "Latent" — defined in config but not yet rendered by any built page (e.g., address, email, phone) — and do not block the current four pages from launching.
+- The persistent site chrome (header, footer, homepage) has zero visible placeholders; every Active item is scoped to a specific page section.
+
+### Changed
+
+- `docs/PROJECT_CONTEXT.md` — §2 current phase/sprint updated (also caught up the Milestone 6B → SOS pivot transition that a prior session's edit had deliberately left untouched); §5 added SOS pivot and CRF as completed features; §13 risk row for bracketed placeholders now points to the dashboard instead of a manual grep instruction; §14 doc map updated
+- `docs/PRODUCT_VISION.md § 10` — one line added cross-linking near-term success metrics to the CRF dashboard
+- `docs/ROADMAP_V2.md § Epic A` — CRF added to the (now substantially complete) milestone list
+
+### Known Issues
+
+- None — this is a documentation-only change; the full verification pipeline (format/lint/typecheck/build) was run to confirm zero unintended code impact, same as the SOS pivot before it.
+
+---
+
+## [0.9.0] — 2026-07-17 — Product Architecture Foundation: School Operating System (SOS) Pivot
+
+Documentation and architectural-direction only — no code changes, no UI changes, no refactor, no feature work.
+
+### Added
+
+- `docs/PRODUCT_VISION.md` — mission, vision, target audience, primary users, core principles, engineering/product philosophy, configuration strategy summary, future expansion, success metrics
+- `docs/PRODUCT_ARCHITECTURE.md` — current vs. future architecture; Website Engine, Administration, Teacher/Parent/Student Portal, Shared Platform, Configuration Layer, Content Layer, future API/Mobile/CMS layers; explicit layer boundaries; full architecture review of remaining Pant-Public-School-specific coupling
+- `docs/ROADMAP_V2.md` — Epic-based forward roadmap (Epics A–H), mapping all completed work into Epic A (Website Engine) and outlining Epics B–H
+- `docs/CONFIGURATION_GUIDE.md` — decision guide and worked examples for what belongs in configuration vs. content vs. code vs. a future database
+- Decision D-019 recorded: the product pivot itself, and the reasoning for what was — and deliberately was not — changed as part of it
+
+### Changed
+
+- `docs/PROJECT_CONTEXT.md § 1` — one small, surgical addition cross-linking to `PRODUCT_VISION.md`; the vision paragraph, current-phase tracking, decisions log, and risk register are otherwise untouched, since they remain accurate for what's built today. § 14 Reference Links updated with the four new documents.
+- `docs/ARCHITECTURE.md` — status line corrected (was stale since Phase 0B.1, describing "no business functionality, pages... yet" despite five built pages); added a cross-reference to `PRODUCT_ARCHITECTURE.md` for direction, explicitly noting it does not change current-state architecture.
+
+### Architecture Review Findings
+
+- `docs/ARCHITECTURE.md` itself already contained zero Pant-Public-School-specific literals — verified by direct search, not assumed. The architecture was not rescued by this pivot; it was already written generically.
+- The actual tenant coupling is exactly where it should be for a single-tenant product: `src/config/school.ts` (hardcoded identity literals), `package.json`'s `name` field, and each page's `content.ts` (correctly tenant-owned content, not a defect).
+- No refactor performed — isolation path documented in `PRODUCT_ARCHITECTURE.md § 15` for when a second real tenant exists, not before.
+
+### Known Issues
+
+- None — this is a documentation-only change; the full verification pipeline (format/lint/typecheck/build) was run to confirm zero unintended code impact.
+
+---
+
+## [0.8.0] — 2026-07-17 — Public Website Epic, Milestone 6B: Campus Experience
+
+### Added
+
+- `src/components/website/pages/Campus/` — the Campus Experience page (safety, classrooms, library, computer learning, sports, wellbeing, gallery preview, visit CTA), composed entirely from the Marketing Section Library with zero new components
+- `src/app/(public)/campus/page.tsx` — one-line re-export wiring the page composite into the App Router
+- `"Campus"` added to `src/config/navigation.ts`'s `NAV_LINKS`, between Academics and Admissions — a real, visible navigation change (this milestone is a new page launch, not a refactor)
+
+### Content Decisions
+
+- Deliberately not a facility-by-facility checklist: four of eight content sections (Safety, Library, Computer Learning, Wellbeing) use narrative prose; `FeatureGrid` is reserved for the three sections that are genuinely a short list of distinct, parallel items (Classrooms, Sports, Gallery Preview).
+- Every concrete, checkable facility claim (safety measures, digital learning aids, library collection size, computer lab specs, specific sports facilities, wellbeing provisions) is an explicit bracketed placeholder; the _philosophy_ behind each space is written in full, matching the values-statement-vs-verifiable-fact line already established for `About`/`Academics`.
+- Campus Gallery Preview ships with zero real images — no campus photography exists yet. Built as four category cards (Classrooms/Library/Playground/Events) each captioned "[Photo pending]," with a `Callout` disclaimer and a link to the not-yet-built `/gallery` route.
+- `/facilities` (previously only a planned route) is effectively superseded by `/campus`'s narrative treatment of the same ground — see `docs/ROUTES.md`.
+- Imports every school fact from `src/config/school.ts` (D-018) from day one — the first page built _after_ the config layer existed, rather than refactored onto it afterward.
+
+### Manual Verification
+
+Re-rendered `/campus` in an isolated, temporary-profile headless Chrome instance on a dedicated port, run alongside (not in place of) a pre-existing dev server process this session didn't start — left that process completely untouched throughout, per this milestone's browser-safety instructions. Confirmed zero console errors, correct heading hierarchy (single `<h1>`, sequential `<h2>`s, `<h3>` items), single `<main>`, and that "Campus" appears correctly in both the desktop header nav and the mobile nav drawer.
+
+### Known Issues
+
+- `/campus` must not go to production with its bracketed placeholder text or gallery "[Photo pending]" captions still visible — tracked in `docs/PROJECT_CONTEXT.md § 13` and this page's own README.
+
+---
+
+## [0.7.0] — 2026-07-17 — Public Website Epic, Milestone 6A: Configuration Layer
+
+### Added
+
+- `src/config/{school,branding,navigation,contact,social,seo}.ts` — a centralized, framework-free configuration layer for school-identity, branding, navigation, contact, social, and SEO-default values
+- `src/config/README.md` documenting the layer's dependency graph and the deliberate exceptions (social links not yet wired to `SiteFooter`, per-page prose not force-templated)
+- Decision D-018 recorded: centralized configuration layer
+
+### Changed (pure refactor — no visible behavior change)
+
+- `src/lib/seo.ts` — now imports `SEO_DEFAULTS` from `config/seo.ts` instead of hardcoding `SITE_URL`/`SITE_NAME` locally
+- `src/app/layout.tsx` — root `metadata` now sources from `config/seo.ts`; the inline theme-init `<script>` now interpolates `config/branding.ts`'s `storageKey` instead of a second hardcoded `"pps-theme"` string
+- `src/components/shared/ThemeProvider.tsx` — `STORAGE_KEY` now sourced from `config/branding.ts`, the same value the root layout's init script uses, closing a real dual-hardcoded-string risk
+- `src/components/website/{Hero,SiteHeader,SiteFooter,MobileNav,StatStrip}.tsx` — school name and location literals replaced with `SCHOOL.name`/`SCHOOL.location`/`SCHOOL.locationShort`; nav imports moved to `config/navigation.ts`
+- `src/components/website/pages/{About,Admissions,Academics}/content.ts` — school name, classes, affiliation, and Principal's name/title literals replaced with imports from `config/school.ts`
+- `src/components/website/pages/{About,Admissions,Academics}/metadata.ts` — page titles now interpolate `SEO_DEFAULTS.siteName` instead of hardcoding it a third time
+- `docs/ROUTES.md` — nav-links.ts path reference updated; two stale route-status rows (`/academics`, `/admissions`) corrected while already editing this file
+
+### Removed
+
+- `src/components/website/nav-links.ts` — content moved to `src/config/navigation.ts` under the same `NAV_LINKS` export name
+
+### Manual Verification
+
+- Re-rendered `/`, `/about`, `/admissions`, `/academics` in an isolated, temporary-profile headless Chrome instance (dedicated debug port, never touching the user's real browser) and diffed every piece of rendered text (header brand, footer brand/location, page titles, h1s, nav labels, Principal figcaption, Admissions badges) against the pre-refactor output — byte-for-byte identical. Confirmed the theme-toggle `localStorage` key is still exactly `"pps-theme"` after unifying its two former hardcoded copies into one config value.
+
+### Known Issues
+
+- `SiteFooter`'s three social icons are not yet wired to `config/social.ts`'s four placeholder URLs — deliberate, see D-018.
+
+---
+
+## [0.6.0] — 2026-07-17 — Public Website Epic, Milestone 5: Academics Experience
+
+### Added
+
+- `src/components/website/pages/Academics/` — the full Academics marketing/information page (philosophy, learning stages, subjects, methodology, co-curricular activities, assessment approach, closing admissions CTA), composed entirely from the Marketing Section Library with zero new components
+- `src/app/(public)/academics/page.tsx` — one-line re-export wiring the page composite into the App Router
+
+### Content Decisions
+
+- Learning Stages covers exactly the four named stages (Nursery, Kindergarten, Primary, Upper Primary through Class 8) — no additional grades assumed.
+- Subjects & Learning Areas lists seven broad, generic category labels, not a grade-by-grade curriculum breakdown — no detailed curriculum fabricated.
+- Co-Curricular Activities uses three generic, safe categories (Sports, Art & Craft, Music) plus one explicit bracketed placeholder, with a `Callout` making clear the section is illustrative, not confirmed.
+- Assessment Approach is written generically (growth-tracking vs. ranking) with no board name, no marks-vs-grades specifics, and no examination frequency stated; a `Callout` explicitly flags the real policy needs School Admin confirmation and that this page intentionally avoids board-specific examination rules.
+- No curriculum board (CBSE/ICSE/State) is named anywhere on the page.
+
+### Architecture
+
+- No architecture changes — reused the `components/website/pages/<Page>/` composite pattern ([D-016](./DECISIONS.md#d-016--page-composite-folder-pattern-componentswebsitepagespage--thin-route-re-export)) and the shared `src/lib/seo.ts` helper ([D-017](./DECISIONS.md#d-017--shared-libseots-helper-extracted-on-the-second-page)) exactly as established. No new decision recorded.
+
+### Known Issues
+
+- `/academics` must not go to production with its bracketed placeholder text (co-curricular offerings, assessment policy specifics) still visible — tracked in `docs/PROJECT_CONTEXT.md § 13` and this page's own README.
+
+---
+
+## [0.5.0] — 2026-07-17 — Public Website Epic, Milestone 4: Admissions Experience
+
+### Added
+
+- `src/components/website/pages/Admissions/` — the full informational Admissions page (overview, journey, eligibility, required documents, fees, FAQ, timings, closing CTA), composed entirely from the Marketing Section Library with zero new library components
+- `src/app/(public)/admissions/page.tsx` — one-line re-export wiring the page composite into the App Router (replaces the empty Phase 0B.1 scaffold folder)
+- `src/lib/seo.ts` — `buildPageMetadata()`/`buildPageJsonLd()`, extracted from duplicated boilerplate now that a second page (`Admissions`) needed the identical pattern `About` already had
+- One page-local, unexported `DataTable` helper (in `Admissions/page.tsx`, not a library component) for the two label/value tables (Eligibility, School Timings)
+- Decision D-017 recorded: shared SEO helper extraction
+
+### Changed
+
+- `src/components/website/pages/About/metadata.ts` — refactored to use the new `lib/seo.ts` helpers; no behavior change, re-verified via a full browser re-check
+- `docs/ARCHITECTURE.md` — `lib/` folder tree entry for `seo.ts`; page-composite pattern note updated to reference the shared SEO helper
+- `docs/ROUTES.md` — `/admissions` marked Built (informational); added planned `/admissions/enquiry` for the future form
+
+### Content Decisions
+
+- Ten of the fifteen Marketing Section Library components are now in use across `About`+`Admissions`: this milestone added `BadgeGroup`, `Timeline` (second use), `FeatureGrid` (third/fourth use), `Callout`, and `FAQAccordion` to the set `About` already exercised.
+- Per `CONTENT_GUIDELINES.md § 12`, every fact requiring School Admin confirmation is an explicit bracketed placeholder: government affiliation status, all class-wise age criteria, whether/how Aadhaar is required (plus a `Callout` disclaimer that the whole document list needs confirmation), every fee figure (replaced entirely by the required "Official fee structure will be shared by the school administration" messaging), every FAQ answer, and every timing value. The six-step admission journey (Enquiry → Campus Visit → Document Submission → Interaction → Confirmation → Admission) is written in full as process description, not a claimed fact about this school specifically.
+- The enquiry **form** is explicitly out of scope — every CTA on this page points to a new, not-yet-built `/admissions/enquiry` route, matching the project's existing pattern of nav links that 404 until their phase arrives.
+
+### Fixed
+
+- Nothing in application code this session — a stale/conflicting local dev-server process from earlier verification steps produced a corrupted (9-byte) CSS bundle during manual browser verification; diagnosed via a direct CSS-bundle fetch, resolved by killing all orphaned Next.js dev processes and restarting clean. Not a code defect; recorded here because it could otherwise look like one.
+
+### Known Issues
+
+- `/admissions` must not go to production with its bracketed placeholder text still visible — tracked in `docs/PROJECT_CONTEXT.md § 13` and this page's own README.
+
+---
+
+## [0.4.0] — 2026-07-17 — Phase 1C: About Experience
+
+### Added
+
+- `src/components/website/pages/About/` — the first real public content page, composed entirely from the Marketing Section Library with zero new components: `page.tsx` (composition), `content.ts` (framework-free copy), `sections.ts` (maps copy into library component props), `metadata.ts` (SEO `Metadata` + JSON-LD), `README.md`, `index.ts`
+- `src/app/(public)/about/page.tsx` — one-line re-export wiring the page composite into the App Router
+- Decision D-016 recorded: the `components/website/pages/<Page>/` composite pattern + thin route re-export, establishing the convention for every future content page
+
+### Changed
+
+- `docs/ARCHITECTURE.md` — folder tree and Component Hierarchy section document the new `pages/` pattern
+- `docs/COMPONENT_INVENTORY.md` — new "Website Pages" section
+- `docs/ROUTES.md` — `/about` marked Built
+
+### Content Decisions
+
+- Eight of the fifteen Marketing Section Library components were used (`PageHero`, `SectionHeader`, `ContentContainer`, `SectionDivider`, `FeatureGrid`, `Timeline`, `QuoteBlock`, `CTASection`); `ImageText` was deliberately not used for "School Story" since no real campus photography exists yet and a placeholder photo would misrepresent the school.
+- Per `CONTENT_GUIDELINES.md § 12`, four fields hold explicit bracketed placeholders instead of fabricated facts: the founding-story paragraph, the Principal's message and name, all three journey-timeline dates/milestones, and one "achievement" claim. Mission, Vision, and Core Values are genuine production copy (values statements, not verifiable facts).
+- No Open Graph image is set — no real photo exists; referencing a fake one would break social previews.
+
+### Fixed
+
+- **Duplicate React key in the Journey Timeline.** Two placeholder milestone items shared an identical `date`/`title` (`"[Year]"`/`"[Milestone]"`), producing a `Timeline`-internal duplicate-key console warning (`key={`${item.date}-${item.title}`}`). Found via real-browser verification (headless Chrome + DevTools Protocol), not caught by build/lint/typecheck. Fixed by differentiating the two placeholder titles (`[Milestone 1]`/`[Milestone 2]`).
+
+### Known Issues
+
+- `/about` must not go to production with its bracketed placeholder text still visible — tracked in `docs/PROJECT_CONTEXT.md § 13` and this page's own README.
+
+---
+
+## [0.3.0] — 2026-07-17 — Phase 1B: Marketing Section Library, Phase 1B.1: Architecture Review
+
+### Added
+
+- `src/components/website/sections/` — a new reusable Marketing Section Library, 15 components, each in its own folder (`Component.tsx`, `.types.ts`, optionally `.constants.ts`, `README.md`, `index.ts`): `ContentContainer`, `AnimatedSection`, `SectionHeader`, `SectionDivider`, `PageHero`, `ImageText`, `FeatureGrid`, `StatisticsGrid`, `Timeline`, `QuoteBlock`, `CTASection`, `FAQAccordion`, `BadgeGroup`, `Callout`, `ResponsiveImage`
+- `src/components/website/sections/shared/` — cross-cutting `SectionCta`/`SectionAlignment`/`ContainerWidth` types and container-width constants, reused across multiple sections to avoid duplicated shape definitions
+- `src/components/website/sections/index.ts` — barrel export for the whole library
+- Decision D-012 recorded: mandatory architecture review of `src/components/website/` completed — kept in place (not migrated to a `src/features/` tree), with the new library organized as `components/website/sections/<Name>/`
+- **(Phase 1B.1)** `src/app/dev/playground/` — a permanent, development-only route rendering every Marketing Section Library component with sample data; 404s in production (verified via a clean production build + start), replacing the build-and-delete temporary preview page pattern from Phase 1B. See D-015.
+- **(Phase 1B.1)** Decisions D-013 (independent re-review of `components/` vs. `src/features/`, reaffirmed, added a feature-subgrouping threshold rule for future role folders), D-014 (SectionDivider YAGNI simplification), D-015 (permanent dev playground route) recorded.
+
+### Changed
+
+- `docs/ARCHITECTURE.md` — folder tree updated with `components/website/sections/` and `app/dev/playground/`; Component Hierarchy section documents the per-component-folder convention, a README-proportionality standard, and the feature-subgrouping threshold rule
+- `docs/COMPONENT_INVENTORY.md` — new "Marketing Section Library" category, all 15 components registered
+- **(Phase 1B.1)** `SectionDivider` simplified from 4 variants (`light`/`dark`/`minimal`/`decorative`) to 2 (`light`/`dark`) — the removed variants were invented without a spec or consumer and rendered identically to `light`, differing only in DOM shape. See D-014.
+- **(Phase 1B.1)** `docs/ROUTES.md` — new "Development-Only Routes" section documenting `/dev/playground`
+
+### Fixed
+
+- **`PageHero`'s `image` variant text was unreadable in dark mode.** Used `text-primary-foreground` (a theme token that is _dark_ in dark mode, since it's designed as text-on-a-light-primary-button) for text over a hardcoded dark photo overlay — in dark mode this rendered near-black text on a near-black background. The overlay is a fixed `bg-black/50` scrim independent of site theme, so its paired text must be too; replaced every `primary-foreground` reference in the `image` variant (title, subtitle, breadcrumbs, secondary CTA) with literal `text-white` at various opacities. Found via real-browser screenshot verification (dark mode, headless Chrome + DevTools Protocol), invisible to build/lint/typecheck.
+
+### Known Issues
+
+- None of the 15 components are composed into any real page yet — that's explicitly out of scope for this phase (library only, per task instructions). `About`, `Academics`, `Admissions`, `Gallery`, `Contact` pages remain unbuilt, pending real content from School Admin.
+- `StatisticsGrid` ships with zero consumers and no real data — flagged in the Phase 1B.1 review as the library's weakest present-day YAGNI justification; kept because it was explicitly speced and is already complete/tested, not because it's currently needed.
+
+---
+
 ## [0.2.0] — 2026-07-17 — Phase 1A: Public Website Foundation
 
 **Status:** Manually reviewed and approved.

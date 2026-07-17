@@ -1,7 +1,8 @@
 import { Camera, Play, Share2 } from "lucide-react";
 import Link from "next/link";
 
-import { NAV_LINKS } from "@/components/website/nav-links";
+import { FOOTER_NAV_LINKS } from "@/config/navigation";
+import { SCHOOL } from "@/config/school";
 
 const SOCIAL_LINKS = [
   { label: "Facebook", icon: Share2 },
@@ -18,10 +19,10 @@ export function SiteFooter() {
         <div className="grid grid-cols-1 gap-12 sm:grid-cols-2 lg:grid-cols-4">
           <div className="sm:col-span-2 lg:col-span-1">
             <span className="text-foreground text-lg font-semibold tracking-tight">
-              Pant Public School
+              {SCHOOL.name}
             </span>
             <p className="text-muted-foreground mt-3 max-w-xs text-sm leading-relaxed">
-              Vidyadhar Nagar, Jaipur, Rajasthan
+              {SCHOOL.location}
             </p>
             <div className="mt-5 flex items-center gap-3">
               {SOCIAL_LINKS.map(({ label, icon: Icon }) => (
@@ -41,7 +42,7 @@ export function SiteFooter() {
           <div>
             <h3 className="text-foreground text-sm font-semibold">Quick Links</h3>
             <ul className="mt-4 flex flex-col gap-3">
-              {NAV_LINKS.map((link) => (
+              {FOOTER_NAV_LINKS.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
@@ -57,7 +58,7 @@ export function SiteFooter() {
           <div>
             <h3 className="text-foreground text-sm font-semibold">Contact</h3>
             <ul className="text-muted-foreground mt-4 flex flex-col gap-3 text-sm leading-relaxed">
-              <li>Vidyadhar Nagar, Jaipur, Rajasthan</li>
+              <li>{SCHOOL.location}</li>
               <li>
                 <Link
                   href="/contact"
@@ -72,7 +73,7 @@ export function SiteFooter() {
           <div>
             <h3 className="text-foreground text-sm font-semibold">Admissions</h3>
             <p className="text-muted-foreground mt-4 text-sm leading-relaxed">
-              Considering Pant Public School for your child? Start with a simple enquiry.
+              Considering {SCHOOL.name} for your child? Start with a simple enquiry.
             </p>
             <Link href="/admissions" className="text-primary mt-3 inline-block text-sm font-medium">
               Apply for admission →
@@ -82,9 +83,9 @@ export function SiteFooter() {
 
         <div className="border-border mt-12 flex flex-col items-center justify-between gap-4 border-t pt-8 sm:flex-row">
           <p className="text-muted-foreground text-sm">
-            © {year} Pant Public School. All rights reserved.
+            © {year} {SCHOOL.name}. All rights reserved.
           </p>
-          <p className="text-muted-foreground text-sm">Crafted with care for Pant Public School</p>
+          <p className="text-muted-foreground text-sm">Crafted with care for {SCHOOL.name}</p>
         </div>
       </div>
     </footer>

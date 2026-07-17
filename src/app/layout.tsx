@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist_Mono, Inter } from "next/font/google";
 
 import { ThemeProvider } from "@/components/shared/ThemeProvider";
+import { BRANDING } from "@/config/branding";
+import { SEO_DEFAULTS } from "@/config/seo";
 
 import "./globals.css";
 
@@ -17,14 +19,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Pant Public School",
-  description: "Pant Public School Digital Platform",
+  title: SEO_DEFAULTS.defaultTitle,
+  description: SEO_DEFAULTS.defaultDescription,
 };
 
 const THEME_INIT_SCRIPT = `
 (function () {
   try {
-    var stored = window.localStorage.getItem("pps-theme");
+    var stored = window.localStorage.getItem("${BRANDING.theme.storageKey}");
     var theme = stored || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
     if (theme === "dark") document.documentElement.classList.add("dark");
   } catch (e) {}

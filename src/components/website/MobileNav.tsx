@@ -7,8 +7,9 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { LanguageSwitch } from "@/components/website/LanguageSwitch";
-import { NAV_LINKS } from "@/components/website/nav-links";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
+import { MOBILE_NAV_LINKS } from "@/config/navigation";
+import { SCHOOL } from "@/config/school";
 import { DURATION } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -69,7 +70,7 @@ export function MobileNav() {
             transition={{ duration: shouldReduceMotion ? 0 : DURATION.base }}
           >
             <div className="flex h-16 items-center justify-between px-6">
-              <span className="text-foreground font-semibold">Pant Public School</span>
+              <span className="text-foreground font-semibold">{SCHOOL.name}</span>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
@@ -82,7 +83,7 @@ export function MobileNav() {
 
             <nav className="flex flex-1 flex-col justify-between overflow-y-auto px-6 pb-10">
               <ul className="flex flex-col gap-1 pt-4">
-                {NAV_LINKS.map((link, index) => (
+                {MOBILE_NAV_LINKS.map((link, index) => (
                   <li key={link.href}>
                     <Link
                       ref={index === 0 ? firstLinkRef : undefined}

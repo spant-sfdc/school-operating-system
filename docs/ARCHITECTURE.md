@@ -1,6 +1,6 @@
 # Architecture
 
-**Status:** Infrastructure scaffolding complete as of Phase 0B.1 (project skeleton, tooling, empty folder structure — no business functionality, pages, or database schema yet). This document is the canonical, detailed reference — [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md) holds only a condensed summary and links here. For naming/formatting conventions that implement this architecture, see [DEVELOPMENT_CONVENTIONS.md](./DEVELOPMENT_CONVENTIONS.md).
+**Status:** Documents the architecture as built through the Public Website Epic (Milestone 6B) — infrastructure, design system, Marketing Section Library, page-composite pattern, and configuration layer are in place; database schema is still empty (Epic B is next, see [ROADMAP_V2.md](./ROADMAP_V2.md)). This document is the canonical reference for what exists **today** — [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md) holds only a condensed summary and links here. For how this architecture is meant to evolve toward a reusable platform, see [PRODUCT_ARCHITECTURE.md](./PRODUCT_ARCHITECTURE.md) — that document does not change anything below; it explains direction, not current state. For naming/formatting conventions that implement this architecture, see [DEVELOPMENT_CONVENTIONS.md](./DEVELOPMENT_CONVENTIONS.md).
 
 ---
 
@@ -44,6 +44,8 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 /
 ├── src/
 │   ├── app/
+│   │   ├── dev/
+│   │   │   └── playground/          # Dev-only component showcase — 404s in production, see DECISIONS.md § D-015
 │   │   ├── (public)/              # Guest-facing marketing site — no auth
 │   │   │   ├── page.tsx             # Homepage
 │   │   │   ├── admissions/
@@ -78,25 +80,44 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   ├── components/
 │   │   ├── ui/                      # Shadcn primitives (button, input, dialog, table…) + typography
 │   │   ├── shared/                  # Cross-role reusable composites (theme provider/toggle, empty state, page header)
-│   │   ├── website/                 # Guest/public-site composites (header, footer, hero) — see DECISIONS.md § D-011
+│   │   ├── website/                 # Guest/public-site composites — see DECISIONS.md § D-011
+│   │   │   ├── sections/              # Reusable marketing section library — see DECISIONS.md § D-012
+│   │   │   │   └── <SectionName>/       # PageHero/, FeatureGrid/, etc. — Component.tsx, .types.ts, .constants.ts?, README.md, index.ts
+│   │   │   └── pages/                 # Page composites (About/, etc.) — see DECISIONS.md § D-016
+│   │   │       └── <PageName>/          # page.tsx, content.ts, sections.ts, metadata.ts, README.md, index.ts
 │   │   ├── admin/                   # Admin-specific composites
 │   │   └── teacher/                 # Teacher-specific composites
 │   ├── lib/
 │   │   ├── auth.ts                  # Auth.js configuration (Phase 2)
-│   │   ├── db.ts                    # Prisma client singleton (Phase 0B/2)
+│   │   ├── db.ts                    # Prisma client singleton — driver adapter (@prisma/adapter-pg), see D-027
+│   │   ├── db-utils.ts               # checkDatabaseHealth(), writeAuditLog() — see D-027
+│   │   ├── env.ts                   # Zod-validated environment variables — see DEVELOPMENT_CONVENTIONS.md § 10
 │   │   ├── motion.ts                # Shared Framer Motion durations/easing/variants
+│   │   ├── seo.ts                   # buildPageMetadata()/buildPageJsonLd() — imports config/seo.ts, see DECISIONS.md § D-018
 │   │   ├── validations/              # Zod schemas
 │   │   └── utils.ts                 # cn() and other shared helpers
+│   ├── config/                      # Centralized site config — see DECISIONS.md § D-018
+│   │   ├── school.ts                  # Canonical identity facts (name, location, contact, principal, etc.)
+│   │   ├── branding.ts                # Logo/favicon placeholders, theme storage key — points at CSS tokens, doesn't duplicate them
+│   │   ├── navigation.ts              # NAV_LINKS + footer/mobile aliases + empty teacher/admin placeholders
+│   │   ├── contact.ts                 # Contact-page values, re-shapes school.ts
+│   │   ├── social.ts                  # Social platform URL placeholders (not yet wired to SiteFooter)
+│   │   └── seo.ts                     # SEO_DEFAULTS consumed by lib/seo.ts
 │   ├── hooks/                       # Shared custom hooks
 │   └── types/                       # Shared TypeScript types
 ├── prisma/
-│   ├── schema.prisma
+│   ├── schema.prisma                # AuditLog, School, AcademicYear (Migrations 000-001) — see MIGRATION_PLAN.md
+│   ├── seed.ts                       # Seeds one School + one AcademicYear from src/config/school.ts
 │   └── migrations/
+│       ├── 20260718000000_audit_foundation/
+│       └── 20260718000100_school_foundation/
 ├── docs/                            # This documentation set
 └── public/                          # Static assets (favicon, static images)
 ```
 
 **Principle:** Route groups `(public)`, `(admin)`, `(teacher)` create hard visual and logical boundaries. A file inside `(admin)` should never be reachable by a Teacher session, enforced at the layout level, not just by UI hiding.
+
+**Configuration layer (`src/config/`):** School-identity, branding, navigation, contact, social, and SEO-default values are centralized here as plain, framework-free data — see [DECISIONS.md § D-018](./DECISIONS.md#d-018--centralized-configuration-layer-srcconfig). This is deliberately not `lib/` (which holds behavior/utilities) or a page's own `content.ts` (which holds page-specific copy) — it's the one place a fact that's true across the whole site (the school's name, for instance) is defined once.
 
 ---
 
@@ -159,6 +180,10 @@ Layout (role shell: sidebar/topbar)
 - **Primitives** (`components/ui`): unmodified or lightly themed Shadcn components, plus cross-cutting presentational primitives like typography. Never role-specific.
 - **Shared composites** (`components/shared`): reusable across roles — page headers, empty states, confirmation dialogs, theme provider/toggle.
 - **Role composites** (`components/website`, `components/admin`, `components/teacher`): feature-specific, built from primitives + shared composites. `website/` serves the Guest role (see [DECISIONS.md § D-011](./DECISIONS.md#d-011--componentswebsite-folder)).
+- **Reusable section libraries** (`components/website/sections`): a large, general-purpose set of composites within a role (the Marketing Section Library — `PageHero`, `FeatureGrid`, etc., see [DECISIONS.md § D-012](./DECISIONS.md#d-012--marketing-section-library-location-componentswebsitesections-not-srcfeatures)) gets its own subfolder, one folder per component: `ComponentName/ComponentName.tsx`, `.types.ts`, optionally `.constants.ts` (only when there's a real variant-to-className map worth extracting), `README.md`, and `index.ts` re-exporting the component and its types. Apply this pattern to any future role's composite library that grows past a handful of flat files — not retroactively to existing single-file composites that don't need it.
+- **Page composites** (`components/website/pages`): a full page assembled from the section library (About, Admissions, and future pages) gets its own folder, `PageName/`: `page.tsx` (composition only), `content.ts` (framework-free copy), `sections.ts` (shapes `content.ts` into library component props), `metadata.ts` (page-specific title/description passed to `lib/seo.ts`'s shared `buildPageMetadata()`/`buildPageJsonLd()`), `README.md`, `index.ts`. The actual `app/(public)/<page>/page.tsx` route file is a one-line re-export — see [DECISIONS.md § D-016](./DECISIONS.md#d-016--page-composite-folder-pattern-componentswebsitepagespage--thin-route-re-export).
+- **`README.md` proportionality:** the six-section template (Purpose/Props/Variants/Accessibility Notes/Usage Example/Future Enhancements) is the default, but sections that don't apply to a trivial component (e.g., no `Variants` section for a component with no variant prop) should be omitted rather than filled with boilerplate like "None anticipated" — the README should be as long as the component actually warrants, not a fixed-length form.
+- **Feature-subgrouping threshold:** a role folder (`components/admin/`, `components/teacher/`, or `components/website/` outside `sections/`) should adopt the same per-component-folder subgrouping once it exceeds roughly 8 components spanning more than 2 distinct domains (e.g., `components/admin/attendance/`, `components/admin/marks/`). Below that threshold, flat files in the role folder are simpler and should not be preemptively subdivided. See [DECISIONS.md § D-013](./DECISIONS.md#d-013--phase-1b1-architecture-review-reaffirmed-role-segmented-components-added-a-feature-subgrouping-threshold-rule).
 
 ---
 

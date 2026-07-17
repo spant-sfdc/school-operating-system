@@ -1,6 +1,8 @@
 import { BookOpen, MapPin, Sparkles, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+import { SCHOOL } from "@/config/school";
+
 interface StatItem {
   icon: LucideIcon;
   label: string;
@@ -25,7 +27,7 @@ const STATS: StatItem[] = [
   },
   {
     icon: MapPin,
-    label: "Vidyadhar Nagar, Jaipur",
+    label: SCHOOL.locationShort,
     description: "Rooted in the community we serve",
   },
 ];

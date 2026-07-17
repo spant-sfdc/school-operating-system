@@ -64,3 +64,48 @@ This document governs _behavior_. For _what_ to build, see [PRODUCT_REQUIREMENTS
 ## 6. What "Good" Looks Like
 
 Before considering any unit of work complete, verify it against the full checklist in [DEFINITION_OF_DONE.md](./DEFINITION_OF_DONE.md). If it doesn't meet every applicable item, it isn't done.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Browser Safety Rules
+
+The AI MUST NEVER terminate, close, kill, or restart any browser process that was not started by the AI itself.
+
+This includes:
+
+- Google Chrome
+- Chromium
+- Microsoft Edge
+- Brave
+- Arc
+- Safari
+- Firefox
+
+The AI MUST NOT execute commands such as:
+
+pkill chrome
+pkill chromium
+killall Chrome
+killall chromium
+taskkill chrome
+taskkill msedge
+
+or any equivalent command.
+
+If browser-based testing is required:
+
+• Reuse an existing browser automation session if available.
+
+• Otherwise launch a dedicated isolated browser instance using a temporary user profile.
+
+• Close ONLY the browser instance started by the current automation session.
+
+• Never touch user browser windows.
+
+If cleanup is required:
+
+Terminate only the child process created by the current test.
+
+Never terminate browsers globally.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

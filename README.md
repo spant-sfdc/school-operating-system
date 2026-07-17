@@ -2,7 +2,7 @@
 
 A modern, elegant web platform for **Pant Public School**, Vidyadhar Nagar, Jaipur, Rajasthan — built to feel like Stripe Dashboard or Notion, not a traditional school ERP.
 
-> **Status:** Phase 1A — Public Website Foundation. Design system, theme, header/footer, and a Hero-only homepage are live at `/`. No content pages (About, Academics, Admissions, etc.), forms, or auth yet. See [docs/ROADMAP.md](./docs/ROADMAP.md) for the full delivery plan.
+> **Status:** Public Website Epic, Milestone 4 — Admissions Experience. `/about` and `/admissions` are live, both built entirely by composing the Marketing Section Library. `/admissions` is informational only — no enquiry form yet. Several fields on both pages hold bracketed placeholders pending School Admin content. Academics, the enquiry form, and other content pages/forms/auth remain unbuilt. See [docs/ROADMAP.md](./docs/ROADMAP.md) for the full delivery plan.
 
 ---
 
@@ -110,29 +110,33 @@ This project is documentation-first, built as an operating system another AI or 
 git clone <repository-url>
 cd pant-public-school
 pnpm install
-cp .env.example .env.local   # configure DATABASE_URL, AUTH secrets, Cloudinary keys
+cp .env.example .env.local   # configure DATABASE_URL, DIRECT_URL, AUTH secrets, Cloudinary keys
 pnpm dev                     # http://localhost:3000
 ```
 
 Other scripts: `pnpm build`, `pnpm lint`, `pnpm typecheck`, `pnpm format` / `pnpm format:check`.
 
-No database models or auth configuration exist yet — `prisma migrate dev` has nothing to migrate. Prisma CLI commands currently require Node 22+ in `PATH`; see [docs/PROJECT_CONTEXT.md § Current Risks](./docs/PROJECT_CONTEXT.md#13-current-risks).
+Two migrations exist so far (`AuditLog`; `School`/`AcademicYear` — see [docs/database/MIGRATION_PLAN.md](./docs/database/MIGRATION_PLAN.md)), but require a real PostgreSQL connection (`DATABASE_URL`/`DIRECT_URL`) to apply — `prisma migrate deploy`. Auth configuration doesn't exist yet. Prisma CLI commands currently require Node 22+ in `PATH`; see [docs/PROJECT_CONTEXT.md § Current Risks](./docs/PROJECT_CONTEXT.md#13-current-risks).
 
 ---
 
 ## Roadmap
 
-| Phase | Focus                                        |
-| ----- | -------------------------------------------- |
-| 0A    | Project Foundation & Documentation           |
-| 0A.1  | AI Development Operating System              |
-| 0B.1  | Project Scaffolding                          |
-| 1A    | Public Website Foundation _(current)_        |
-| 1     | Public Website (Guest Experience)            |
-| 2     | Authentication & Admin Foundations           |
-| 3     | Attendance                                   |
-| 4     | Examinations & Marks                         |
-| 5     | Teacher Experience Polish & Launch Readiness |
+| Phase | Focus                                                   |
+| ----- | ------------------------------------------------------- |
+| 0A    | Project Foundation & Documentation                      |
+| 0A.1  | AI Development Operating System                         |
+| 0B.1  | Project Scaffolding                                     |
+| 1A    | Public Website Foundation                               |
+| 1B    | Marketing Section Library                               |
+| 1B.1  | Architecture Review & Refactoring                       |
+| 1C    | About Experience                                        |
+| M4    | Public Website Epic — Admissions Experience _(current)_ |
+| 1     | Public Website (Guest Experience)                       |
+| 2     | Authentication & Admin Foundations                      |
+| 3     | Attendance                                              |
+| 4     | Examinations & Marks                                    |
+| 5     | Teacher Experience Polish & Launch Readiness            |
 
 Full detail: [docs/ROADMAP.md](./docs/ROADMAP.md). Live feature-by-feature status: [docs/FEATURE_STATUS.md](./docs/FEATURE_STATUS.md).
 
