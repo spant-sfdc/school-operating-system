@@ -2,75 +2,66 @@
 
 Live sprint board for the Pant Public School Digital Platform. Update this file at the end of every work session — it should always reflect current reality, not a plan from the past.
 
-**Note:** This is the day-to-day sprint board. For the feature/module-level progress dashboard, see [FEATURE_STATUS.md](./FEATURE_STATUS.md) instead.
+**Note:** This is the day-to-day sprint board. For the feature/module-level progress dashboard, see [FEATURE_STATUS.md](./FEATURE_STATUS.md) instead. Full history of everything completed in prior phases: [CHANGELOG.md](./CHANGELOG.md).
 
 ---
 
-## Current Sprint — Phase 0B.1 Finalization
+## Current Sprint — Phase 1A: Public Website Foundation
 
-**Sprint Goal:** Stabilize and verify the Phase 0B.1 scaffold — fix defects, pin the runtime, prepare the repository for its first commit, push, and tag. No new functionality.
+**Sprint Goal:** Build the reusable design system and chrome (theme tokens, typography, header, footer, hero) every future public page builds on. Not the homepage content itself, not any other page.
+
+**Status:** Manually reviewed and approved. Finalized for commit/push/tag as `v0.2.0`.
 
 ---
 
 ## Completed
 
-| Task                                                                                                                                                                                                | Notes                                                                                                                                     |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Draft `docs/PROJECT_CONTEXT.md`                                                                                                                                                                     | Permanent memory document established (Phase 0A)                                                                                          |
-| Draft `docs/PRODUCT_REQUIREMENTS.md`                                                                                                                                                                | Full PRD with scope, journeys, acceptance criteria (Phase 0A)                                                                             |
-| Draft `docs/ARCHITECTURE.md`                                                                                                                                                                        | Folder structure, rendering strategy, security/performance principles (Phase 0A)                                                          |
-| Draft `docs/UI_DESIGN_SYSTEM.md`                                                                                                                                                                    | Design bible covering color, type, spacing, motion, accessibility (Phase 0A)                                                              |
-| Draft `docs/AI_RULES.md`                                                                                                                                                                            | Behavioral rules for AI assistants working on this codebase (Phase 0A)                                                                    |
-| Draft `docs/DECISIONS.md`                                                                                                                                                                           | Initial decision log (D-001 through D-005) (Phase 0A)                                                                                     |
-| Draft `docs/ROADMAP.md`                                                                                                                                                                             | Phase 0A through Phase 5 defined (Phase 0A)                                                                                               |
-| Draft `docs/TASKS.md`                                                                                                                                                                               | This file (Phase 0A)                                                                                                                      |
-| Draft `docs/CHANGELOG.md`                                                                                                                                                                           | Version 0.0.1 entry (Phase 0A)                                                                                                            |
-| Draft `README.md`                                                                                                                                                                                   | Project overview and setup instructions (Phase 0A)                                                                                        |
-| Refactor `docs/PROJECT_CONTEXT.md` into single source of truth                                                                                                                                      | Phase 0A.1                                                                                                                                |
-| Create `docs/PROJECT_GUARDRAILS.md`, `DEVELOPMENT_CONVENTIONS.md`, `COMPONENT_INVENTORY.md`, `ROUTES.md`, `FEATURE_STATUS.md`, `DEFINITION_OF_DONE.md`, `MASTER_PROMPT.md`, `IMPLEMENTATION_LOG.md` | Phase 0A.1 — see [CHANGELOG.md](./CHANGELOG.md) v0.0.2                                                                                    |
-| Expand `docs/AI_RULES.md`, reformat `docs/DECISIONS.md`, convert `docs/CHANGELOG.md` to Keep a Changelog format, update `README.md`                                                                 | Phase 0A.1                                                                                                                                |
-| Remove duplicated tech stack / folder structure / design principle content across documents                                                                                                         | Phase 0A.1                                                                                                                                |
-| Scaffold Next.js 15 project (TypeScript strict, Tailwind v4, shadcn/ui, `src/` layout, ESLint/Prettier/Husky/lint-staged)                                                                           | Phase 0B.1 — see [CHANGELOG.md](./CHANGELOG.md) v0.1.0                                                                                    |
-| Create full `ARCHITECTURE.md` folder structure as empty directories under `src/`                                                                                                                    | Phase 0B.1                                                                                                                                |
-| Install approved dependencies (Framer Motion, Lucide, React Hook Form, Zod, Auth.js v5, Prisma + pg, next-intl, next-pwa)                                                                           | Phase 0B.1 — package installs only, see [DECISIONS.md § D-008](./DECISIONS.md#d-008--phase-0b1-tooling--dependency-additions)             |
-| Initialize Prisma (datasource + generator, zero models) and validate `prisma generate`                                                                                                              | Phase 0B.1                                                                                                                                |
-| Create `.env.example`, `.gitignore`, `.editorconfig`, VSCode workspace config                                                                                                                       | Phase 0B.1                                                                                                                                |
-| Verify build, typecheck, lint, and format all pass clean                                                                                                                                            | Phase 0B.1                                                                                                                                |
-| Record `docs/DECISIONS.md` D-007 (`src/` layout) and D-008 (tooling additions)                                                                                                                      | Phase 0B.1                                                                                                                                |
-| Repository review — remove orphaned `@base-ui/react`/`class-variance-authority`, reclassify `shadcn` as devDependency                                                                               | Phase 0B.1 Finalization — see [DECISIONS.md § D-009](./DECISIONS.md#d-009--phase-0b1-finalization-dependency-cleanup-and-runtime-pinning) |
-| Pin project Node.js version (`.nvmrc` = 22) and `package.json engines` (node ≥22 <23, pnpm ≥10)                                                                                                     | Phase 0B.1 Finalization                                                                                                                   |
-| Upgrade global `pnpm` to 10.34.5 so the pinned engines constraint is actually satisfiable                                                                                                           | Phase 0B.1 Finalization                                                                                                                   |
-| Add `pnpm-workspace.yaml` (`allowBuilds: prisma`) for pnpm 10's postinstall-script opt-in                                                                                                           | Phase 0B.1 Finalization                                                                                                                   |
-| Re-verify `pnpm install`, `lint`, `typecheck`, `build` all pass clean under the pinned toolchain                                                                                                    | Phase 0B.1 Finalization                                                                                                                   |
+_Full detail for every item below: [CHANGELOG.md](./CHANGELOG.md)._
+
+| Task                                                                                                                     | Notes                                                                                                                             |
+| ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| Phase 0A — Documentation foundation (10 documents)                                                                       | See CHANGELOG v0.0.1                                                                                                              |
+| Phase 0A.1 — Documentation consolidation, single source of truth, 8 new operating docs                                   | See CHANGELOG v0.0.2                                                                                                              |
+| Phase 0B.1 — Next.js scaffold, tooling, empty folder structure, dependency installs                                      | See CHANGELOG v0.1.0                                                                                                              |
+| Phase 0B.1 Finalization — dependency cleanup, runtime pinning (`.nvmrc`, `engines`)                                      | See CHANGELOG v0.1.0, [DECISIONS.md § D-009](./DECISIONS.md#d-009--phase-0b1-finalization-dependency-cleanup-and-runtime-pinning) |
+| Repository committed, pushed, tagged `v0.1.0` on `phase/0b-1-project-scaffolding`                                        | —                                                                                                                                 |
+| Phase 1A — `docs/CONTENT_GUIDELINES.md` authored                                                                         | See CHANGELOG v0.2.0                                                                                                              |
+| Phase 1A — Semantic design tokens extended (surface, success, warning, info, duration, shadow), placeholder accent color | See CHANGELOG v0.2.0, [DECISIONS.md § D-010](./DECISIONS.md#d-010--placeholder-accent-color-for-phase-1a)                         |
+| Phase 1A — Inter typography, `Display`/`Heading`/`Text`/`Caption`/`Code` primitives                                      | See CHANGELOG v0.2.0                                                                                                              |
+| Phase 1A — Real theme system (`ThemeProvider`, `useTheme`, `ThemeToggle`), no new dependency                             | See CHANGELOG v0.2.0                                                                                                              |
+| Phase 1A — `SiteHeader`, `MobileNav`, `LanguageSwitch`, `SiteFooter`, `Hero`, `AnimatedBackground`, `StatStrip` built    | See CHANGELOG v0.2.0, [DECISIONS.md § D-011](./DECISIONS.md#d-011--componentswebsite-folder)                                      |
+| Phase 1A — Homepage moved to `(public)/page.tsx`, renders Hero only                                                      | See CHANGELOG v0.2.0                                                                                                              |
+| Phase 1A — Font-scoping bug found and fixed via real-browser verification                                                | See [IMPLEMENTATION_LOG.md](./IMPLEMENTATION_LOG.md)                                                                              |
+| Phase 1A — Manually reviewed and approved                                                                                | —                                                                                                                                 |
 
 ---
 
 ## Pending
 
-| Task                                                                              | Owner                      | Notes                                                                            |
-| --------------------------------------------------------------------------------- | -------------------------- | -------------------------------------------------------------------------------- |
-| School stakeholder review & sign-off on all documentation and scaffolding         | School Admin               | Required before further phases begin                                             |
-| Provide brand identity input (logo, exact color palette, fonts if any)            | School Admin               | Blocks finalizing exact color tokens in `UI_DESIGN_SYSTEM.md` and shadcn theme   |
-| Provide real content for public site (About, Academics, Facilities copy + images) | School Admin               | Needed for Phase 1                                                               |
-| Confirm admission enquiry form fields                                             | School Admin               | Needed for Phase 1                                                               |
-| Confirm examination grading approach (marks vs. grade-based)                      | School Admin               | Needed for Phase 4                                                               |
-| Confirm academic year structure (start month, terms)                              | School Admin               | Needed for Phase 2 (School Settings)                                             |
-| Decide `next-intl` locale-routing approach (or defer formally) before activating  | Engineering                | Would restructure `app/` with a `[locale]` segment — needs its own decision      |
-| Provide PWA icon set / manifest branding before activating `next-pwa`             | School Admin + Engineering | Blocked on brand identity input                                                  |
-| Push `phase/0b-1-project-scaffolding` branch and `v0.1.0` tag to `origin`         | Engineering                | Requires GitHub authentication — see Blocked below if credentials are missing    |
-| Kick off Phase 0B.2 / Phase 1 implementation work                                 | Engineering                | Blocked on documentation sign-off, School Admin inputs above, and the push above |
+| Task                                                                                       | Owner                      | Notes                                                                       |
+| ------------------------------------------------------------------------------------------ | -------------------------- | --------------------------------------------------------------------------- |
+| Provide brand identity input (logo, exact color palette, fonts if any)                     | School Admin               | Would replace the placeholder accent color (D-010)                          |
+| Provide real content for public site (About, Academics, Facilities copy + images)          | School Admin               | Needed before those pages can be built                                      |
+| Confirm admission enquiry form fields                                                      | School Admin               | Needed for the Admissions page/form                                         |
+| Confirm examination grading approach (marks vs. grade-based)                               | School Admin               | Needed for Phase 4                                                          |
+| Confirm academic year structure (start month, terms)                                       | School Admin               | Needed for Phase 2 (School Settings)                                        |
+| Decide `next-intl` locale-routing approach (or defer formally) before activating           | Engineering                | Would restructure `app/` with a `[locale]` segment — needs its own decision |
+| Provide PWA icon set / manifest branding before activating `next-pwa`                      | School Admin + Engineering | Blocked on brand identity input                                             |
+| Build About, Academics, Facilities, Gallery, Notices, Documents, Contact, Admissions pages | Engineering                | Blocked on real content above; most nav links currently 404                 |
 
 ---
 
 ## Blocked
 
-| Task                                                        | Blocked By                                                                                                                         |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Finalize exact brand color palette in `UI_DESIGN_SYSTEM.md` | Awaiting school brand identity input                                                                                               |
-| Public site content build                                   | Awaiting real copy/images from school                                                                                              |
-| Prisma schema design (actual models)                        | Awaiting academic year/grading structure decisions                                                                                 |
-| `src/lib/auth.ts` provider configuration                    | Awaiting Auth.js provider strategy decision ([ARCHITECTURE.md § Open Questions](./ARCHITECTURE.md#9-open-architectural-questions)) |
-| `src/lib/db.ts` Prisma client singleton                     | Awaiting a schema with real models to justify wiring it in                                                                         |
+| Task                                                                    | Blocked By                                                                                                                         |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Finalize exact brand accent color                                       | Awaiting school brand identity input                                                                                               |
+| Public site content pages (About, Academics, Facilities, Gallery, etc.) | Awaiting real copy/images from school                                                                                              |
+| Prisma schema design (actual models)                                    | Awaiting academic year/grading structure decisions                                                                                 |
+| `src/lib/auth.ts` provider configuration                                | Awaiting Auth.js provider strategy decision ([ARCHITECTURE.md § Open Questions](./ARCHITECTURE.md#9-open-architectural-questions)) |
+| `src/lib/db.ts` Prisma client singleton                                 | Awaiting a schema with real models to justify wiring it in                                                                         |
+| `next-intl` locale routing activation                                   | Needs its own architecture decision — would restructure `app/`                                                                     |
+| `next-pwa` manifest/service worker activation                           | Needs brand icon set                                                                                                               |
 
 ---
 
@@ -91,4 +82,4 @@ _Unscoped, unscheduled — for consideration in future roadmap phases only. Do n
 - Move tasks between sections as their state changes — do not duplicate a task across sections.
 - Every "Pending" task should have a clear owner (School Admin vs. Engineering).
 - "Blocked" tasks must state exactly what they're blocked by, not just "waiting."
-- At the end of each phase, archive completed tasks into a phase-tagged section or summarize in `CHANGELOG.md` and trim this file so it stays a live board, not a history log.
+- At the end of each phase, archive completed tasks into `CHANGELOG.md` and trim this file so it stays a live board, not a history log — as done at the start of Phase 1A.

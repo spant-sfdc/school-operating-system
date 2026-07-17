@@ -2,7 +2,7 @@
 
 **Purpose:** The complete routing map for the platform. Planned ahead of implementation so route naming, guards, and navigation relationships are decided once — not improvised page by page. Update this document in the same change that adds, removes, or moves a route.
 
-**Status as of Phase 0A.1:** No routes are implemented yet. Everything below is the _planned_ route map derived from [PRODUCT_REQUIREMENTS.md § Feature List](./PRODUCT_REQUIREMENTS.md#5-feature-list-version-1) and [ARCHITECTURE.md § Folder Structure](./ARCHITECTURE.md#2-folder-structure). Treat paths as provisional until Phase 0B/1 implementation confirms them.
+**Status as of Phase 1A:** `/` is implemented (Public Website Foundation — Header, Footer, Hero only, see [FEATURE_STATUS.md](./FEATURE_STATUS.md)). All other routes below remain the _planned_ route map derived from [PRODUCT_REQUIREMENTS.md § Feature List](./PRODUCT_REQUIREMENTS.md#5-feature-list-version-1) and [ARCHITECTURE.md § Folder Structure](./ARCHITECTURE.md#2-folder-structure). Treat unimplemented paths as provisional until their phase confirms them — nav links pointing to them will 404 until then, which is expected.
 
 ---
 
@@ -10,18 +10,18 @@
 
 No authentication required.
 
-| Path            | Purpose                                           | Notes                                                        |
-| --------------- | ------------------------------------------------- | ------------------------------------------------------------ |
-| `/`             | Homepage                                          | Hero, highlights, entry points to Admissions/Notices/Gallery |
-| `/about`        | About the school                                  | Static content, Admin-managed                                |
-| `/academics`    | Academics overview                                | Static content, Admin-managed                                |
-| `/facilities`   | Facilities overview                               | Static content, Admin-managed                                |
-| `/admissions`   | Admission enquiry form                            | Submits to enquiry storage, visible to Admin                 |
-| `/notices`      | Public notice board                               | Admin-managed list                                           |
-| `/notices/[id]` | Single notice detail                              | Dynamic segment                                              |
-| `/gallery`      | Photo gallery                                     | Cloudinary-backed, Admin-managed                             |
-| `/documents`    | Document downloads (circulars, forms, prospectus) | Cloudinary-backed                                            |
-| `/contact`      | Contact page / contact form                       |                                                              |
+| Path            | Purpose                                           | Notes                                                                                                                                                                                        |
+| --------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`             | Homepage                                          | **Built (Phase 1A):** Hero section only (headline, CTAs, stat strip) per the Phase 1A "no homepage sections" scope — About/Academics/Facilities-style content sections come in a later phase |
+| `/about`        | About the school                                  | Static content, Admin-managed                                                                                                                                                                |
+| `/academics`    | Academics overview                                | Static content, Admin-managed                                                                                                                                                                |
+| `/facilities`   | Facilities overview                               | Static content, Admin-managed                                                                                                                                                                |
+| `/admissions`   | Admission enquiry form                            | Submits to enquiry storage, visible to Admin                                                                                                                                                 |
+| `/notices`      | Public notice board                               | Admin-managed list                                                                                                                                                                           |
+| `/notices/[id]` | Single notice detail                              | Dynamic segment                                                                                                                                                                              |
+| `/gallery`      | Photo gallery                                     | Cloudinary-backed, Admin-managed                                                                                                                                                             |
+| `/documents`    | Document downloads (circulars, forms, prospectus) | Cloudinary-backed                                                                                                                                                                            |
+| `/contact`      | Contact page / contact form                       |                                                                                                                                                                                              |
 
 ## 2. Auth Routes — `(auth)` route group
 
@@ -107,11 +107,11 @@ Public routes do not use breadcrumbs (single-level marketing navigation).
 
 ## 8. Navigation Relationships
 
-| Surface                 | Primary nav items                                                                   | Notes                                                                                                                                                                 |
-| ----------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Public site header      | Home, About, Academics, Admissions, Notices, Gallery, Contact                       | Consistent across all public pages                                                                                                                                    |
-| Admin sidebar           | Dashboard, Students, Teachers, Attendance, Examinations, Reports, Content, Settings | Enquiries surfaced as a badge/count on Dashboard, not a top-level nav item                                                                                            |
-| Teacher sidebar/tab bar | Dashboard, Attendance, Marks, Students, Leave, Profile                              | Tab bar on mobile/tablet per [UI_DESIGN_SYSTEM.md § Responsive Breakpoints](./UI_DESIGN_SYSTEM.md#13-responsive-breakpoints) — Teacher is the primary tablet-use role |
+| Surface                 | Primary nav items                                                                   | Notes                                                                                                                                                                                                                                                                                                        |
+| ----------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Public site header      | Home, About, Academics, Admissions, Gallery, News, Downloads, Contact               | **Built (Phase 1A).** "News" labels the `/notices` route, "Downloads" labels `/documents` — see [CONTENT_GUIDELINES.md](./CONTENT_GUIDELINES.md) for label rationale. Utility items (Login, Language, Theme) live alongside, not in this list. Single source of truth: `src/components/website/nav-links.ts` |
+| Admin sidebar           | Dashboard, Students, Teachers, Attendance, Examinations, Reports, Content, Settings | Enquiries surfaced as a badge/count on Dashboard, not a top-level nav item                                                                                                                                                                                                                                   |
+| Teacher sidebar/tab bar | Dashboard, Attendance, Marks, Students, Leave, Profile                              | Tab bar on mobile/tablet per [UI_DESIGN_SYSTEM.md § Responsive Breakpoints](./UI_DESIGN_SYSTEM.md#13-responsive-breakpoints) — Teacher is the primary tablet-use role                                                                                                                                        |
 
 ---
 
