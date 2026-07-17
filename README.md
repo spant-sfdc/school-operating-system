@@ -2,7 +2,7 @@
 
 A modern, elegant web platform for **Pant Public School**, Vidyadhar Nagar, Jaipur, Rajasthan — built to feel like Stripe Dashboard or Notion, not a traditional school ERP.
 
-> **Status:** Phase 0B.1 — Project Scaffolding. Infrastructure only: tooling, configuration, and empty folder structure. No pages, components, database schema, or auth logic yet. See [docs/ROADMAP.md](./docs/ROADMAP.md) for the full delivery plan.
+> **Status:** Phase 1A — Public Website Foundation. Design system, theme, header/footer, and a Hero-only homepage are live at `/`. No content pages (About, Academics, Admissions, etc.), forms, or auth yet. See [docs/ROADMAP.md](./docs/ROADMAP.md) for the full delivery plan.
 
 ---
 
@@ -58,16 +58,16 @@ Full architecture — folder structure, routing, rendering strategy, security an
 
 ---
 
-## Folder Structure (Scaffolded — Phase 0B.1)
+## Folder Structure
 
-Application code lives under `src/`. Structure exists as empty directories — no pages, components, or schema populated yet. Full breakdown with files and rationale: [docs/ARCHITECTURE.md § Folder Structure](./docs/ARCHITECTURE.md#2-folder-structure).
+Application code lives under `src/`. Full breakdown with files and rationale: [docs/ARCHITECTURE.md § Folder Structure](./docs/ARCHITECTURE.md#2-folder-structure).
 
 ```
 /
 ├── src/
 │   ├── app/          # (public) (auth) (admin) (teacher) route groups + api/
-│   ├── components/   # ui/ shared/ admin/ teacher/
-│   ├── lib/          # utilities, validations/
+│   ├── components/   # ui/ shared/ website/ admin/ teacher/
+│   ├── lib/          # utilities, motion.ts, validations/
 │   ├── hooks/        # shared custom hooks
 │   └── types/        # shared TypeScript types
 ├── prisma/           # schema.prisma & migrations
@@ -87,6 +87,7 @@ This project is documentation-first, built as an operating system another AI or 
 | [docs/PRODUCT_REQUIREMENTS.md](./docs/PRODUCT_REQUIREMENTS.md)       | Full PRD — scope, journeys, acceptance criteria                    |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)                       | System architecture, folder structure, rendering strategy          |
 | [docs/UI_DESIGN_SYSTEM.md](./docs/UI_DESIGN_SYSTEM.md)               | Design bible — color, typography, spacing, motion, accessibility   |
+| [docs/CONTENT_GUIDELINES.md](./docs/CONTENT_GUIDELINES.md)           | Voice, tone, CTA/headline/error/success copy rules                 |
 | [docs/PROJECT_GUARDRAILS.md](./docs/PROJECT_GUARDRAILS.md)           | Vision-protection rules and module approval process                |
 | [docs/DEVELOPMENT_CONVENTIONS.md](./docs/DEVELOPMENT_CONVENTIONS.md) | Naming, formatting, and code-style conventions                     |
 | [docs/COMPONENT_INVENTORY.md](./docs/COMPONENT_INVENTORY.md)         | Registry of every UI component — prevents duplicates               |
@@ -115,7 +116,7 @@ pnpm dev                     # http://localhost:3000
 
 Other scripts: `pnpm build`, `pnpm lint`, `pnpm typecheck`, `pnpm format` / `pnpm format:check`.
 
-No database models or auth configuration exist yet (Phase 0B.1 is infrastructure-only) — `prisma migrate dev` has nothing to migrate until Phase 0B.2. Prisma CLI commands currently require Node 22+ in `PATH`; see [docs/PROJECT_CONTEXT.md § Current Risks](./docs/PROJECT_CONTEXT.md#13-current-risks).
+No database models or auth configuration exist yet — `prisma migrate dev` has nothing to migrate. Prisma CLI commands currently require Node 22+ in `PATH`; see [docs/PROJECT_CONTEXT.md § Current Risks](./docs/PROJECT_CONTEXT.md#13-current-risks).
 
 ---
 
@@ -125,7 +126,8 @@ No database models or auth configuration exist yet (Phase 0B.1 is infrastructure
 | ----- | -------------------------------------------- |
 | 0A    | Project Foundation & Documentation           |
 | 0A.1  | AI Development Operating System              |
-| 0B.1  | Project Scaffolding _(current)_              |
+| 0B.1  | Project Scaffolding                          |
+| 1A    | Public Website Foundation _(current)_        |
 | 1     | Public Website (Guest Experience)            |
 | 2     | Authentication & Admin Foundations           |
 | 3     | Attendance                                   |

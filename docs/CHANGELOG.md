@@ -12,6 +12,42 @@ Nothing yet.
 
 ---
 
+## [0.2.0] — 2026-07-17 — Phase 1A: Public Website Foundation
+
+**Status:** Manually reviewed and approved.
+
+### Added
+
+- `docs/CONTENT_GUIDELINES.md` — voice, tone, CTA/headline/error/success copy rules, future AI writing rules
+- Semantic design tokens: `surface`, `surface-muted`, `success`, `warning`, `info` (+ foregrounds), `duration-fast/base/slow`, `shadow-soft/elevated`
+- Placeholder indigo-blue accent color for `primary`/`ring` — explicitly swappable, see [DECISIONS.md § D-010](./DECISIONS.md#d-010--placeholder-accent-color-for-phase-1a)
+- Inter as the primary typeface (replacing the unwired Geist Sans default)
+- Typography primitives: `Display`, `Heading`, `Text`, `Caption`, `Code` (`src/components/ui/typography.tsx`)
+- Theme system: `ThemeProvider`, `useTheme` hook, `ThemeToggle` — real light/dark switching with `localStorage` persistence and a no-FOUC inline script, no new dependency
+- Shared motion constants (`src/lib/motion.ts`) — durations, easing, `fadeInUp`/`staggerContainer` variants, `prefers-reduced-motion`-aware
+- `src/components/website/` (new folder, see [DECISIONS.md § D-011](./DECISIONS.md#d-011--componentswebsite-folder)): `SiteHeader` (responsive, sticky, transparent-over-hero → solid-on-scroll), `MobileNav` (accessible slide-in panel), `LanguageSwitch` (honest single-locale UI, no fake i18n), `SiteFooter`, `Hero`, `AnimatedBackground`, `StatStrip`, `nav-links.ts`
+- `src/app/(public)/layout.tsx` and `src/app/(public)/page.tsx` — public route chrome and Hero-only homepage
+- Decisions D-010 (placeholder accent color) and D-011 (`components/website/` folder) recorded
+
+### Changed
+
+- `src/app/layout.tsx` — Inter + Geist Mono font variable classes moved from `<body>` to `<html>` (see Fixed), `ThemeProvider` and no-FOUC script wired in
+- `src/app/globals.css` — `--font-sans` now correctly resolves to Inter instead of a circular no-op self-reference
+- Homepage moved from `src/app/page.tsx` (root) to `src/app/(public)/page.tsx`, matching `ARCHITECTURE.md`'s documented route-group structure; old placeholder removed
+- `docs/ARCHITECTURE.md`, `docs/COMPONENT_INVENTORY.md`, `docs/ROUTES.md` updated to reflect the new folder and built components
+
+### Fixed
+
+- **Font not rendering as Inter.** The original `--font-sans: var(--font-inter)` was declared on `:root`/`<html>` while next/font's `--font-inter` custom property was only defined via a class on `<body>` — a descendant. CSS custom properties only cascade from ancestor to descendant, so `html` couldn't see `body`'s variable, and `font-family` silently fell back to the browser default (Times). Found via real-browser verification (computed-style inspection showed `font-family: Times`), fixed by moving the font variable classes to `<html>`.
+
+### Known Issues
+
+- About, Academics, Facilities, Admissions, Gallery, Notices, Documents, and Contact pages are not yet built — most header/footer nav links currently 404, which is expected at this phase
+- Exact brand accent color remains a placeholder pending real school input (D-010)
+- Statistics strip uses qualitative highlights, not numeric claims, since no verified school statistics exist yet (see [CONTENT_GUIDELINES.md § 12](./CONTENT_GUIDELINES.md#12-what-this-platform-never-says))
+
+---
+
 ## [0.1.0] — 2026-07-17 — Phase 0B.1: Project Scaffolding
 
 ### Added

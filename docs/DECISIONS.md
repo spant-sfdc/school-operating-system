@@ -123,6 +123,32 @@ This document records every approved architectural, product, and process decisio
 
 ---
 
+## D-010 — Placeholder Accent Color for Phase 1A
+
+- **Description:** Introduced a single accent color (a deep indigo-blue, `oklch(0.42 0.13 258)` light / `oklch(0.68 0.14 258)` dark) for the `primary` semantic token, plus low-saturation `success`/`warning`/`info` tokens and a `surface`/`surface-muted` pair aliasing the existing `card`/`muted` values. Everything else in the palette remains the pure-grayscale neutral base established in Phase 0B.1.
+- **Reason:** [UI_DESIGN_SYSTEM.md § 2](./UI_DESIGN_SYSTEM.md#2-color) explicitly anticipates this exact move — "use a neutral slate-based palette with a single accent color for `primary`" — and [PROJECT_CONTEXT.md § Current Risks](./PROJECT_CONTEXT.md#13-current-risks) already flagged "revisit before Phase 1 visual polish" as the mitigation plan for the no-brand-palette risk. A pure-grayscale primary button has no visual weight and undermines the "premium" design direction the Phase 1A brief asked for. This is explicitly a placeholder, trivially swappable at the token layer without touching any component, once real brand input arrives.
+- **Alternatives Considered:** Keep primary grayscale until real brand colors are approved — rejected; produces a visually flat CTA hierarchy inconsistent with the "Vercel/Apple/Stripe" design direction and the task's explicit "Configure Global Theme" instruction. Wait for School Admin sign-off before introducing any color — rejected; the token system's entire purpose is to make this exact swap safe and cheap, so there's no reason to block visual polish on it.
+- **Approved By:** Project Owner (via Phase 1A design direction — "Minimal color usage", "premium... Vercel... Apple... Stripe")
+- **Date:** 2026-07-17
+- **Status:** ✅ Approved — explicitly placeholder
+- **Affected Documents:** [UI_DESIGN_SYSTEM.md](./UI_DESIGN_SYSTEM.md), [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md)
+- **Future Review Required:** Yes — replace with the school's actual approved brand color once provided; tracked in [TASKS.md](./TASKS.md).
+
+---
+
+## D-011 — `components/website/` Folder
+
+- **Description:** Added `src/components/website/` as a new sibling to `components/admin/` and `components/teacher/`, for Guest-facing public-site composites (`SiteHeader`, `SiteFooter`, `Hero`, `MobileNav`, `LanguageSwitch`, `AnimatedBackground`, `StatStrip`, `nav-links`).
+- **Reason:** [ARCHITECTURE.md](./ARCHITECTURE.md)'s original component tree only anticipated `ui/`, `shared/`, `admin/`, `teacher/` — no folder for Guest-role composites, even though [COMPONENT_INVENTORY.md](./COMPONENT_INVENTORY.md) already carried a "Website Components" category from Phase 0A.1. `components/shared` is explicitly defined as "reusable across roles," which a public site header genuinely is not (Admin/Teacher have their own shells) — filing these under `shared/` would misrepresent them. `website/` directly parallels the existing `admin/`/`teacher/` pattern: one folder per role's composites.
+- **Alternatives Considered:** Put public-site composites in `components/shared/` — rejected, contradicts that folder's stated definition. Put them directly under `app/(public)/` (co-located with routes) — rejected, `SiteHeader`/`SiteFooter` are used by the `(public)` layout itself and conceptually belong with other component categories, not nested inside the route tree.
+- **Approved By:** Project Owner (via Phase 1A implementation)
+- **Date:** 2026-07-17
+- **Status:** ✅ Approved
+- **Affected Documents:** [ARCHITECTURE.md](./ARCHITECTURE.md), [COMPONENT_INVENTORY.md](./COMPONENT_INVENTORY.md)
+- **Future Review Required:** No.
+
+---
+
 ## Rejected / Deferred Considerations
 
 | Item                                                    | Status             | Reason                                                                                                                                          |

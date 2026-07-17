@@ -20,11 +20,11 @@ Product rationale (objectives, success criteria) lives in [PRODUCT_REQUIREMENTS.
 
 ## 2. Current Phase & Sprint
 
-**Current Phase:** Phase 0B.1 — Project Scaffolding (infrastructure only), finalized and stabilized for review
+**Current Phase:** Phase 1A — Public Website Foundation (design system + header/footer/hero — not the homepage content pages). Manually reviewed and approved; finalized for commit.
 
-**Current Sprint Goal:** Bootstrap the Next.js 15 repository exactly per approved documentation — tooling, configuration, and empty folder structure only. No business functionality, pages, database schema, or auth logic.
+**Current Sprint Goal:** Build the reusable design system and chrome (theme tokens, typography, header, footer, hero) that every future public-site page will be built on. No About/Gallery/Admissions pages, no forms, no auth, no database.
 
-The project skeleton now exists and has been reviewed for correctness: Next.js 15 (App Router, `src/` layout), TypeScript strict, Tailwind CSS v4, ESLint + Prettier, shadcn/ui initialized, Husky + lint-staged, the full `ARCHITECTURE.md` folder structure created as empty directories, and the runtime pinned (Node 22, pnpm ≥10). No routes, components, database models, or auth logic have been implemented — see §5/§6 below.
+The public site now has a real, working foundation: semantic design tokens (including a placeholder accent color, see [DECISIONS.md § D-010](./DECISIONS.md#d-010--placeholder-accent-color-for-phase-1a)), Inter typography, a working light/dark theme toggle, a responsive sticky header with mobile navigation, a footer, and a Hero-only homepage at `/`. Phase 0B.1's infrastructure (tooling, empty folders, runtime pin) is unchanged and still accurate — see §5/§6 below for what's built vs. still pending.
 
 Full phase breakdown: [ROADMAP.md](./ROADMAP.md). Live sprint task board: [TASKS.md](./TASKS.md). Feature-by-feature status dashboard: [FEATURE_STATUS.md](./FEATURE_STATUS.md).
 
@@ -66,7 +66,9 @@ There is **no Parent login** and **no Student login** in Version 1 — see [DECI
 
 ## 5. Completed Features
 
-None. Project infrastructure (Phase 0B.1) is scaffolded, but no product feature has been implemented. See §6 for what's pending and [FEATURE_STATUS.md](./FEATURE_STATUS.md) for the full per-feature dashboard.
+- **Public website design system** (Phase 1A): semantic design tokens, Inter typography, light/dark theme toggle, responsive header (desktop + mobile nav), footer, Hero-only homepage. Not a full feature — the reusable foundation every future public page builds on. Full dashboard: [FEATURE_STATUS.md](./FEATURE_STATUS.md).
+
+No end-to-end product feature (admission enquiry, notices, attendance, etc.) is complete yet — see §6.
 
 ---
 
@@ -74,7 +76,7 @@ None. Project infrastructure (Phase 0B.1) is scaffolded, but no product feature 
 
 ### Guest (Public Website)
 
-Browse marketing/informational site · submit admission enquiry · view notices · view gallery · download documents · contact school
+Browse marketing/informational site (design system built; About/Academics/Facilities content pages pending) · submit admission enquiry · view notices · view gallery · download documents · contact school
 
 ### Admin
 
@@ -150,7 +152,7 @@ This table is canonical — other documents should link here rather than restate
 - **Motion with purpose.** Feedback, never decoration.
 - **Accessible by default.** A baseline requirement, not a checklist item.
 
-Full design bible (color, typography, spacing, components, motion, accessibility, dark mode): [UI_DESIGN_SYSTEM.md](./UI_DESIGN_SYSTEM.md).
+Full design bible (color, typography, spacing, components, motion, accessibility, dark mode): [UI_DESIGN_SYSTEM.md](./UI_DESIGN_SYSTEM.md). Voice, tone, and copy rules (headlines, CTAs, error/success messages): [CONTENT_GUIDELINES.md](./CONTENT_GUIDELINES.md).
 
 ---
 
@@ -177,6 +179,8 @@ Full naming conventions, import order, error handling, logging, and formatting r
 - Application code nests under `src/`; `prisma/`, `public/`, `docs/` stay at repo root (D-007)
 - Phase 0B.1 scaffolding is infrastructure-only: no pages, no database models, no auth logic — `next-auth`, `prisma`, `next-intl`, `next-pwa` are installed but not wired (D-008)
 - Project runtime pinned to Node 22 / pnpm ≥10 via `.nvmrc` and `package.json engines`; `@base-ui/react` and `class-variance-authority` removed as orphaned dependencies (D-009)
+- A placeholder indigo-blue accent color introduced for `primary` (plus `success`/`warning`/`info`/`surface` tokens); explicitly swappable, revisit once real brand identity is provided (D-010)
+- Public-site composites (Header, Footer, Hero, nav) live in a new `components/website/` folder, parallel to `components/admin`/`components/teacher` (D-011)
 
 Full decision log with alternatives considered and approval records: [DECISIONS.md](./DECISIONS.md).
 
@@ -198,8 +202,8 @@ Full context on each: [PRODUCT_REQUIREMENTS.md § Open Product Questions](./PROD
 
 | Risk                                                                   | Impact                                                                                                                                                                                                                                                                                                                                                                                            | Mitigation                                                                                                                                                                                                                                       |
 | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| No brand palette finalized                                             | `UI_DESIGN_SYSTEM.md` color tokens are placeholders; late brand input could force rework of themed components                                                                                                                                                                                                                                                                                     | Confirm neutral placeholder palette is acceptable to ship Phase 0B with; revisit before Phase 1 visual polish                                                                                                                                    |
-| Undefined content pipeline for public site copy/images                 | Could stall Phase 1 (Public Website)                                                                                                                                                                                                                                                                                                                                                              | Flagged in [TASKS.md](./TASKS.md); School Admin owns this dependency                                                                                                                                                                             |
+| No brand palette finalized                                             | A placeholder indigo accent (D-010) now ships live on the public site; if the school's real brand color differs, every `primary`/`ring` reference updates from one token edit — but the visual identity itself isn't final                                                                                                                                                                        | Token system makes the swap cheap by design; revisit `globals.css` `:root`/`.dark` values once real brand input arrives — tracked in [TASKS.md](./TASKS.md)                                                                                      |
+| Undefined content pipeline for public site copy/images                 | Hero/footer copy for Phase 1A is deliberately qualitative (no fabricated stats/facts, per [CONTENT_GUIDELINES.md § 12](./CONTENT_GUIDELINES.md#12-what-this-platform-never-says)); About/Academics/Facilities pages still need real content before they can be built                                                                                                                              | Flagged in [TASKS.md](./TASKS.md); School Admin owns this dependency                                                                                                                                                                             |
 | Role-scoping enforcement discipline                                    | Teacher-to-class data scoping must be enforced server-side from the first line of backend code; easy to get wrong under time pressure                                                                                                                                                                                                                                                             | [ARCHITECTURE.md § Security Principles](./ARCHITECTURE.md#7-security-principles) is mandatory reading before Phase 2                                                                                                                             |
 | Documentation drift                                                    | With this many documents, stale cross-references are a real risk                                                                                                                                                                                                                                                                                                                                  | This file is the tie-breaker; [AI_RULES.md](./AI_RULES.md) requires documentation updates every phase                                                                                                                                            |
 | Machine default Node (v23.1.0) differs from the pinned project runtime | `.nvmrc`/`package.json engines` now pin Node `>=22 <23`; a contributor on the machine's default Node gets a non-fatal `pnpm install` warning, and a genuinely fresh `prisma` package install specifically requires Node 22 in `PATH` (Prisma's own preinstall script hard-checks Node version at install time only — `prisma generate` and other commands run fine under any Node once installed) | Resolved for this repo: pinned in `.nvmrc` + `package.json engines` (Phase 0B.1 Finalization); global `pnpm` upgraded to 10.34.5, which itself runs under any Node. Contributors should run `nvm use` (or equivalent) before their first install |
@@ -214,6 +218,7 @@ Full context on each: [PRODUCT_REQUIREMENTS.md § Open Product Questions](./PROD
 | [PRODUCT_REQUIREMENTS.md](./PRODUCT_REQUIREMENTS.md)       | Full PRD — objectives, scope, exclusions, journeys, acceptance criteria                       |
 | [ARCHITECTURE.md](./ARCHITECTURE.md)                       | System architecture, detailed folder structure, rendering/state/security/performance strategy |
 | [UI_DESIGN_SYSTEM.md](./UI_DESIGN_SYSTEM.md)               | Design bible — color, typography, spacing, components, motion, accessibility, dark mode       |
+| [CONTENT_GUIDELINES.md](./CONTENT_GUIDELINES.md)           | Voice, tone, CTA/headline/error/success copy rules                                            |
 | [PROJECT_GUARDRAILS.md](./PROJECT_GUARDRAILS.md)           | Vision-protection rules and module approval process                                           |
 | [DEVELOPMENT_CONVENTIONS.md](./DEVELOPMENT_CONVENTIONS.md) | Naming, formatting, import order, error handling, logging conventions                         |
 | [COMPONENT_INVENTORY.md](./COMPONENT_INVENTORY.md)         | Registry of every UI component — prevents duplicate components                                |

@@ -76,13 +76,15 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │       ├── attendance/
 │   │       └── examinations/
 │   ├── components/
-│   │   ├── ui/                      # Shadcn primitives (button, input, dialog, table…)
-│   │   ├── shared/                  # Cross-role reusable composites (empty state, page header)
+│   │   ├── ui/                      # Shadcn primitives (button, input, dialog, table…) + typography
+│   │   ├── shared/                  # Cross-role reusable composites (theme provider/toggle, empty state, page header)
+│   │   ├── website/                 # Guest/public-site composites (header, footer, hero) — see DECISIONS.md § D-011
 │   │   ├── admin/                   # Admin-specific composites
 │   │   └── teacher/                 # Teacher-specific composites
 │   ├── lib/
 │   │   ├── auth.ts                  # Auth.js configuration (Phase 2)
 │   │   ├── db.ts                    # Prisma client singleton (Phase 0B/2)
+│   │   ├── motion.ts                # Shared Framer Motion durations/easing/variants
 │   │   ├── validations/              # Zod schemas
 │   │   └── utils.ts                 # cn() and other shared helpers
 │   ├── hooks/                       # Shared custom hooks
@@ -154,9 +156,9 @@ Layout (role shell: sidebar/topbar)
              └─ Client Islands (e.g., AttendanceRowToggle — "use client")
 ```
 
-- **Primitives** (`components/ui`): unmodified or lightly themed Shadcn components. Never role-specific.
-- **Shared composites** (`components/shared`): reusable across roles — page headers, empty states, confirmation dialogs.
-- **Role composites** (`components/admin`, `components/teacher`): feature-specific, built from primitives + shared composites.
+- **Primitives** (`components/ui`): unmodified or lightly themed Shadcn components, plus cross-cutting presentational primitives like typography. Never role-specific.
+- **Shared composites** (`components/shared`): reusable across roles — page headers, empty states, confirmation dialogs, theme provider/toggle.
+- **Role composites** (`components/website`, `components/admin`, `components/teacher`): feature-specific, built from primitives + shared composites. `website/` serves the Guest role (see [DECISIONS.md § D-011](./DECISIONS.md#d-011--componentswebsite-folder)).
 
 ---
 

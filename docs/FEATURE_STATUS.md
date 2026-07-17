@@ -10,14 +10,17 @@
 
 ## Guest / Public Website
 
-| Feature                  | Status      | Owner       | Dependencies                          | Current Phase | Future Phase | Blocked                                     | Risk                                |
-| ------------------------ | ----------- | ----------- | ------------------------------------- | ------------- | ------------ | ------------------------------------------- | ----------------------------------- |
-| Public marketing website | Not Started | Engineering | Brand identity, site copy             | —             | Phase 1      | Yes — awaiting brand/content input          | Medium — content pipeline undefined |
-| Admission enquiry form   | Not Started | Engineering | Enquiry field list confirmed          | —             | Phase 1      | Yes — awaiting field list from School Admin | Low                                 |
-| Notice board             | Not Started | Engineering | Admin content management (write side) | —             | Phase 1      | No                                          | Low                                 |
-| Gallery                  | Not Started | Engineering | Cloudinary config                     | —             | Phase 1      | No                                          | Low                                 |
-| Document downloads       | Not Started | Engineering | Cloudinary config                     | —             | Phase 1      | No                                          | Low                                 |
-| Contact form             | Not Started | Engineering | None                                  | —             | Phase 1      | No                                          | Low                                 |
+| Feature                                                       | Status      | Owner       | Dependencies                          | Current Phase | Future Phase | Blocked                                     | Risk                                |
+| ------------------------------------------------------------- | ----------- | ----------- | ------------------------------------- | ------------- | ------------ | ------------------------------------------- | ----------------------------------- |
+| Design system foundation (tokens, typography, theme)          | Built       | Engineering | None                                  | Phase 1A      | —            | No                                          | Low                                 |
+| Public site header/footer/nav                                 | Built       | Engineering | None                                  | Phase 1A      | —            | No                                          | Low                                 |
+| Homepage (Hero only)                                          | Built       | Engineering | None                                  | Phase 1A      | —            | No                                          | Low                                 |
+| Public marketing website (About/Academics/Facilities content) | Not Started | Engineering | Brand identity, site copy             | —             | Phase 1      | Yes — awaiting brand/content input          | Medium — content pipeline undefined |
+| Admission enquiry form                                        | Not Started | Engineering | Enquiry field list confirmed          | —             | Phase 1      | Yes — awaiting field list from School Admin | Low                                 |
+| Notice board                                                  | Not Started | Engineering | Admin content management (write side) | —             | Phase 1      | No                                          | Low                                 |
+| Gallery                                                       | Not Started | Engineering | Cloudinary config                     | —             | Phase 1      | No                                          | Low                                 |
+| Document downloads                                            | Not Started | Engineering | Cloudinary config                     | —             | Phase 1      | No                                          | Low                                 |
+| Contact form                                                  | Not Started | Engineering | None                                  | —             | Phase 1      | No                                          | Low                                 |
 
 ## Admin
 
