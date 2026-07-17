@@ -12,6 +12,34 @@ Nothing yet.
 
 ---
 
+## [0.18.0] — 2026-07-18 — Sprint 2: Academic Foundation
+
+Migration 003 — `SchoolClass`, `Section`, `Subject` — applied for real to the live Neon database, per [D-030](./DECISIONS.md#d-030--sprint-2-academic-foundation-schoolclass-naming-classsubject-deferred-repository-retrofit-for-schoolacademicyear). Also retrofits `School`/`AcademicYear` with real repositories and refactors `prisma/seed.ts` to stop constructing its own Prisma client. No API, UI, Student, Teacher, or Attendance/Examination module built.
+
+### Added
+
+- `prisma/schema.prisma` — `SchoolClass` (named to avoid JS/TS's `class` reserved word — `schoolClassId`, not `classId`, throughout), `Section`, `Subject`, plus the required opposite-relation fields on `School`/`AcademicYear`.
+- `prisma/migrations/20260718000300_academic_foundation/` — applied via `prisma migrate deploy`; includes three hand-added partial unique indexes (`WHERE deleted_at IS NULL`) per `docs/database/SOFT_DELETE_STRATEGY.md § 2`.
+- `src/repositories/{school,academicYear,schoolClass,section,subject}/` — five new repositories; `school`/`academicYear` close a pre-existing "no direct Prisma outside repositories" gap from Sprint 0.
+- `src/services/academic/` — `createSchoolClassWithSections()` (class + its sections + AuditLog entries, one transaction) and `createAcademicSubject()`. Smoke-tested end to end against the live database and cleaned up.
+- `src/lib/validations/academic.ts` — Zod schemas for `SchoolClass`/`Section`/`Subject` inputs.
+- `prisma/seed.ts` — extended to seed 11 generic `SchoolClass` rows (Nursery–Class 8) with sections A/B each, and 10 generic subjects, all idempotent. Refactored to route every write through repositories/services and use the shared `src/lib/db.ts` singleton exclusively — no longer constructs its own `PrismaClient`.
+
+### Verified
+
+- `pnpm run build`, `typecheck`, `lint`, `format:check` — all clean.
+- `prisma validate`, `prisma migrate status` — schema valid, database up to date (4/4 migrations applied).
+- Live database queries confirm: 11 `SchoolClass`, 22 `Section`, 10 `Subject` rows. Re-running the seed script produces no duplicates (idempotent).
+- `grep` confirms zero direct `db.<model>` access outside `src/repositories/`, across all ten Prisma models now in the schema.
+- Confirmed no circular dependency between `academic` and `identity` modules, and no hidden Pant-Public-School-specific coupling in any repository/service/validator file (both via grep).
+
+### Known Issues
+
+- `ClassSubject` (Subject↔SchoolClass many-to-many) deliberately not built — outside this sprint's scope.
+- No response-shaping/DTO layer exists yet for academic entities — same open item as identity (D-029).
+
+---
+
 ## [0.17.0] — 2026-07-18 — Sprint 1: Identity Foundation
 
 Migration 002 — `Role`, `User`, `Account`, `Session`, `VerificationToken` (Auth.js `@auth/prisma-adapter` shape, extended with this app's own fields), per [D-028](./DECISIONS.md#d-028--sprint-1-identity-foundation-role-as-a-lookup-table-with-accesslevel-user-merges-authjss-adapter-shape-repositoryservice-layer-introduced). Applied for real to a live Neon PostgreSQL database and verified with live queries — unlike Sprint 0, no database availability limitation this time. No API, UI, or business module built.

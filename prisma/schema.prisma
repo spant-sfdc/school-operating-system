@@ -100,6 +100,8 @@ model School {
 
   academicYears AcademicYear[]
   users         User[]
+  schoolClasses SchoolClass[]
+  subjects      Subject[]
 
   @@map("schools")
 }
@@ -120,6 +122,8 @@ model AcademicYear {
   promotionPolicy Json               @map("promotion_policy")
   createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  sections Section[]
 
   @@unique([schoolId, label])
   @@index([schoolId, isCurrent])
@@ -261,4 +265,80 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verification_tokens")
+}
+
+// --- Migration 003: Academic Foundation -------------------------------------
+// Sprint 2. Physically the third migration, and — unlike Sprint 1's Migration
+// 002 — its content now genuinely matches docs/database/MIGRATION_PLAN.md's
+// original "Migration 002 — Academic structure" row (Class/Section/Subject),
+// just built one physical slot later since Identity took "002". `ClassSubject`
+// (the many-to-many linking subjects to classes) is deliberately NOT built
+// here — out of this sprint's explicit scope; subjects and classes remain
+// unlinked until a future migration. See MIGRATION_PLAN.md's Sprint 2 status
+// note and docs/DECISIONS.md's Sprint 2 entry.
+//
+// Named `SchoolClass`, not `Class` — this task's own explicit naming
+// instruction, and a real technical reason independent of that instruction:
+// `class` is a reserved word in JavaScript/TypeScript, and Prisma-generated
+// client code and query-builder chains read awkwardly (and in some contexts
+// are outright invalid identifiers) for a model literally named `Class`.
+// Every field/relation name follows suit (`schoolClassId`, not `classId`).
+//
+// All three models carry `deletedAt` (soft-deletable) and a uniqueness rule
+// scoped `WHERE deleted_at IS NULL` — a partial unique index, hand-added in
+// this migration's SQL, not expressible in schema.prisma syntax (same
+// pattern as Migration 001's AcademicYear.isCurrent). The plain @@index
+// below supports that hand-added constraint; it is not the constraint
+// itself. Per docs/database/SOFT_DELETE_STRATEGY.md § 2 and
+// docs/database/INDEXING_STRATEGY.md § 1 (`Class: @@unique([schoolId,
+// name])`, `Section: @@unique([classId, academicYearId, name])`, `Subject:
+// @@unique([schoolId, name])`) — applied here even though
+// docs/domain/DATABASE_SCHEMA.md § 3's illustrative `Class` block doesn't
+// show the constraint inline; INDEXING_STRATEGY.md's consolidated table is
+// the authoritative reference per its own stated purpose.
+
+model SchoolClass {
+  id        String    @id @default(cuid())
+  schoolId  String    @map("school_id")
+  school    School    @relation(fields: [schoolId], references: [schoolId])
+  name      String
+  sortOrder Int       @map("sort_order")
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  sections Section[]
+
+  @@index([schoolId, name])
+  @@map("school_classes")
+}
+
+model Section {
+  id             String       @id @default(cuid())
+  academicYearId String       @map("academic_year_id")
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
+  schoolClassId  String       @map("school_class_id")
+  schoolClass    SchoolClass  @relation(fields: [schoolClassId], references: [id])
+  name           String
+  capacity       Int?
+  deletedAt      DateTime?    @map("deleted_at") @db.Timestamptz(3)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([schoolClassId, academicYearId, name])
+  @@map("sections")
+}
+
+model Subject {
+  id        String    @id @default(cuid())
+  schoolId  String    @map("school_id")
+  school    School    @relation(fields: [schoolId], references: [schoolId])
+  name      String
+  code      String?
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([schoolId, name])
+  @@map("subjects")
 }

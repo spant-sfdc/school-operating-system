@@ -94,7 +94,9 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   ├── env.ts                   # Zod-validated environment variables — see DEVELOPMENT_CONVENTIONS.md § 10
 │   │   ├── motion.ts                # Shared Framer Motion durations/easing/variants
 │   │   ├── seo.ts                   # buildPageMetadata()/buildPageJsonLd() — imports config/seo.ts, see DECISIONS.md § D-018
-│   │   ├── validations/              # Zod schemas
+│   │   ├── validations/              # THE canonical Zod-schema location, app-wide — see D-029
+│   │   │   ├── identity.ts              # Role/User input schemas
+│   │   │   └── academic.ts              # SchoolClass/Section/Subject input schemas — see D-030
 │   │   └── utils.ts                 # cn() and other shared helpers
 │   ├── config/                      # Centralized site config — see DECISIONS.md § D-018
 │   │   ├── school.ts                  # Canonical identity facts (name, location, contact, principal, etc.)
@@ -105,21 +107,27 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   └── seo.ts                     # SEO_DEFAULTS consumed by lib/seo.ts
 │   ├── hooks/                       # Shared custom hooks
 │   ├── types/                       # Shared TypeScript types
-│   ├── repositories/                # Data-access layer — see D-028. No direct Prisma usage outside this folder.
+│   ├── repositories/                # Data-access layer — see D-028/D-030. No direct Prisma usage outside this folder.
 │   │   ├── user/                      # findUserById/ByEmail, listUsersBySchool, createUser, updateUser, deactivateUser
-│   │   └── role/                      # findRoleById/ByName, listRoles, createRole
-│   ├── services/                    # Business-logic layer, composed from repositories — see D-028
-│   │   └── identity/                  # createIdentityUser() — validated create + role lookup + transactional AuditLog write
-│   └── validators/                  # Zod schemas for repository/service inputs — see D-028; overlaps in stated
-│                                       # purpose with the pre-existing, still-empty lib/validations/ — flagged in TASKS.md, not yet reconciled
+│   │   ├── role/                      # findRoleById/ByName, listRoles, createRole
+│   │   ├── school/                    # findSchoolById, upsertSchool
+│   │   ├── academicYear/              # findCurrentAcademicYear, findAcademicYearByLabel, upsertAcademicYear
+│   │   ├── schoolClass/               # findSchoolClassById/ByName, listSchoolClassesBySchool, createSchoolClass
+│   │   ├── section/                   # findSectionById, listSectionsByClassAndYear, createSection
+│   │   └── subject/                   # findSubjectById/ByName, listSubjectsBySchool, createSubject
+│   └── services/                    # Business-logic layer, composed from repositories — see D-028/D-030
+│       ├── identity/                  # createIdentityUser() — validated create + role lookup + transactional AuditLog write
+│       └── academic/                  # createSchoolClassWithSections(), createAcademicSubject()
 ├── prisma/
-│   ├── schema.prisma                # AuditLog, School, AcademicYear, Role, User, Account, Session, VerificationToken
-│   │                                   # (Migrations 000-002) — see MIGRATION_PLAN.md
-│   ├── seed.ts                       # Seeds one School + one AcademicYear + 3 Roles (Administrator/Principal/Teacher) — no Users
+│   ├── schema.prisma                # AuditLog, School, AcademicYear, Role, User, Account, Session, VerificationToken,
+│   │                                   # SchoolClass, Section, Subject (Migrations 000-003) — see MIGRATION_PLAN.md
+│   ├── seed.ts                       # Seeds School + AcademicYear + 3 Roles + 11 SchoolClasses (Nursery-8, sections A/B)
+│   │                                   # + 10 generic Subjects — no Users, no ClassSubject links
 │   └── migrations/
 │       ├── 20260718000000_audit_foundation/
 │       ├── 20260718000100_school_foundation/
-│       └── 20260718000200_identity_foundation/
+│       ├── 20260718000200_identity_foundation/
+│       └── 20260718000300_academic_foundation/
 ├── docs/                            # This documentation set
 └── public/                          # Static assets (favicon, static images)
 ```

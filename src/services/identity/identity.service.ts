@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { writeAuditLog } from "@/lib/db-utils";
 import { createUser, findUserByEmail } from "@/repositories/user";
 import { findRoleById } from "@/repositories/role";
-import { createUserInputSchema, type CreateUserInput } from "@/validators/identity";
+import { createUserInputSchema, type CreateUserInput } from "@/lib/validations/identity";
 
 /**
  * Creates a User with an assigned Role. Per docs/database/TRANSACTION_BOUNDARIES.md

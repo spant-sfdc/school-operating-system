@@ -44,6 +44,14 @@ model AcademicYear {
   promotionPolicy Json             // { noDetentionUntilClass: "Class 5", reExamAllowed: true, ... } — see BUSINESS_RULES.md § 6
 }
 
+// Implementation note (Sprint 2, 2026-07-18): the real prisma/schema.prisma
+// names this model `SchoolClass`, not `Class` — `class` is a reserved word
+// in JavaScript/TypeScript, and Prisma-generated code for a model literally
+// named `Class` is awkward/risky in some generated contexts. See D-030.
+// Every field/relation follows suit (`schoolClassId`, not `classId`). Also
+// carries `@@unique([schoolId, name])` (partial, `WHERE deletedAt IS NULL`)
+// in the real schema, per INDEXING_STRATEGY.md § 1 — not shown in this
+// illustrative block below, which predates that constraint being made explicit.
 model Class {
   schoolId    String
   school      School   @relation(fields: [schoolId], references: [schoolId])
