@@ -99,6 +99,7 @@ model School {
   updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   academicYears AcademicYear[]
+  users         User[]
 
   @@map("schools")
 }
@@ -123,4 +124,141 @@ model AcademicYear {
   @@unique([schoolId, label])
   @@index([schoolId, isCurrent])
   @@map("academic_years")
+}
+
+// --- Migration 002: Identity Foundation -------------------------------------
+// Sprint 1. Physically the second migration built after 001 — numbered 002
+// since Migration 002 (Academic Structure — Class/Section/Subject) in
+// docs/database/MIGRATION_PLAN.md § 2 hasn't been built yet. Valid ordering:
+// that table's own "Depends on" column lists Identity as depending only on
+// 001, not on Academic Structure. See MIGRATION_PLAN.md's Sprint 1 status
+// note for the full reconciliation — this is a build-order note, not a
+// redesign of the conceptual plan.
+//
+// Scope is narrower than MIGRATION_PLAN.md's original "Migration 003 —
+// Identity" slot: `Teacher`/`TeacherQualification` are explicitly out of
+// this sprint ("no business modules") and remain for a later migration.
+// `Role`, `Account`, `Session`, `VerificationToken` are new — the Auth.js
+// adapter's own required shape, which the conceptual domain model never
+// modeled (auth infrastructure, not a business entity). See
+// docs/DECISIONS.md's Sprint 1 entry.
+//
+// `Account`/`Session` follow Auth.js v5's (@auth/prisma-adapter) canonical
+// Prisma schema exactly — including keeping `Account`'s OAuth-response
+// fields (access_token, refresh_token, expires_at, token_type, id_token,
+// session_state) as literal snake_case field names, not this project's
+// usual camelCase-field-with-@map convention. The adapter constructs its
+// Prisma calls using these exact literal keys; renaming them would silently
+// break OAuth token storage. This is a deliberate, narrow exception to
+// DEVELOPMENT_CONVENTIONS.md § 1, not an oversight.
+
+enum AccessLevel {
+  ADMIN
+  TEACHER
+
+  @@map("access_level")
+}
+
+// A lookup/reference table, not a many-to-many join — every User has
+// exactly one Role in V1 (D-001: Guest/Admin/Teacher only). `name` is the
+// human-facing job title ("Administrator", "Principal", "Teacher");
+// `accessLevel` is the actual permission tier PERMISSION_MATRIX.md's rules
+// check against. Two different `name` rows can share one `accessLevel` —
+// PROJECT_CONTEXT.md § 4 already describes "Admin" as covering "Principal /
+// Management / School Office" job titles, so seeding "Administrator" and
+// "Principal" as two Role rows, both ADMIN-tier, matches that framing
+// exactly rather than introducing a fourth real permission tier.
+model Role {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  accessLevel AccessLevel @map("access_level")
+  description String?
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  users User[]
+
+  @@map("roles")
+}
+
+// Auth.js adapter User, extended with this app's own fields (schoolId,
+// roleId, passwordHash, deactivatedAt) — one User table serves both
+// purposes, per ARCHITECTURE.md § 9's Auth.js provider question ("wire in
+// whichever provider is chosen") remaining unresolved by design: this
+// schema supports either a Credentials or an email/magic-link provider
+// without redesign. `roleId` is required, not nullable — this app has no
+// public self-registration (D-001; Admin provisions every account), so
+// every real User row is created through an Admin-driven flow that assigns
+// a role at creation time, never through the adapter's own auto-create path.
+model User {
+  id            String    @id @default(cuid())
+  schoolId      String    @map("school_id")
+  school        School    @relation(fields: [schoolId], references: [schoolId])
+  roleId        String    @map("role_id")
+  role          Role      @relation(fields: [roleId], references: [id])
+  name          String?
+  email         String    @unique
+  emailVerified DateTime? @map("email_verified") @db.Timestamptz(3)
+  image         String?
+  passwordHash  String?   @map("password_hash")
+  deactivatedAt DateTime? @map("deactivated_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  accounts Account[]
+  sessions Session[]
+
+  @@index([schoolId])
+  @@index([roleId])
+  @@map("users")
+}
+
+// Auth.js adapter Account — OAuth provider link. Field names/shapes are the
+// adapter's own contract, see the migration-header comment above.
+model Account {
+  id                String   @id @default(cuid())
+  userId            String   @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String   @map("provider_account_id")
+  refresh_token     String?  @db.Text
+  access_token      String?  @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?  @db.Text
+  session_state     String?
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+// Auth.js adapter Session — database session strategy.
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// Auth.js adapter VerificationToken — email/magic-link + email-verification
+// flows. No single `id` field, per the adapter's own canonical schema — the
+// composite (identifier, token) unique constraint is this model's key.
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime @db.Timestamptz(3)
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
 }

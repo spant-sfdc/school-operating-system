@@ -92,6 +92,8 @@ model ClassSubject {
 
 ## 4. People & Identity
 
+**Implementation note (Sprint 1, 2026-07-18):** The real `prisma/schema.prisma` now diverges from this illustrative `User` model — see [D-028](../DECISIONS.md#d-028--sprint-1-identity-foundation-role-as-a-lookup-table-with-accesslevel-user-merges-authjss-adapter-shape-repositoryservice-layer-introduced). `role` is a relation to a `Role` lookup table (`name` + `accessLevel` enum), not a flat enum field — the seed data needed to distinguish job title ("Administrator" vs. "Principal") from permission tier. `User` also carries Auth.js's `@auth/prisma-adapter` fields (`emailVerified`, `image`, plus `Account`/`Session`/`VerificationToken` relations) not shown here, since this document predates the Auth.js provider decision entirely. This illustrative block is kept as-is per this document's own stated purpose (a starting reference, not a copy-paste source) rather than rewritten to match — consult `prisma/schema.prisma` directly for the real, current shape.
+
 ```
 model User {
   schoolId       String

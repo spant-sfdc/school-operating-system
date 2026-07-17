@@ -63,6 +63,34 @@ async function main() {
   });
 
   console.log(`Seeded school "${school.name}" with academic year ${label}.`);
+
+  // Dynamic import, not a static one: @/repositories/role transitively
+  // imports src/lib/db → src/lib/env, which parses process.env at module
+  // evaluation time. ESM hoists static imports ahead of this file's own
+  // loadEnv() calls above, so a static import here would evaluate env.ts
+  // before dotenv has run. Deferring to a dynamic import (evaluated when
+  // this line actually executes, not at module load) avoids that ordering
+  // trap while still routing through the repository layer, not raw Prisma.
+  const { createRole, findRoleByName } = await import("../src/repositories/role");
+
+  // Sprint 1 — Identity Foundation. Roles only, no users — see
+  // docs/DECISIONS.md's Sprint 1 entry: "Administrator" and "Principal" are
+  // two distinct job-title Role rows that both grant ADMIN-tier access,
+  // matching PROJECT_CONTEXT.md § 4's "Admin: Principal / Management /
+  // School Office" framing rather than introducing a fourth permission tier.
+  const roleSeeds = [
+    { name: "Administrator", accessLevel: "ADMIN" as const },
+    { name: "Principal", accessLevel: "ADMIN" as const },
+    { name: "Teacher", accessLevel: "TEACHER" as const },
+  ];
+
+  for (const roleSeed of roleSeeds) {
+    const existing = await findRoleByName(roleSeed.name);
+    if (existing) continue;
+    await createRole(roleSeed, db);
+  }
+
+  console.log(`Seeded roles: ${roleSeeds.map((r) => r.name).join(", ")}.`);
 }
 
 main()

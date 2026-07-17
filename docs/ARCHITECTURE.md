@@ -104,13 +104,22 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   ├── social.ts                  # Social platform URL placeholders (not yet wired to SiteFooter)
 │   │   └── seo.ts                     # SEO_DEFAULTS consumed by lib/seo.ts
 │   ├── hooks/                       # Shared custom hooks
-│   └── types/                       # Shared TypeScript types
+│   ├── types/                       # Shared TypeScript types
+│   ├── repositories/                # Data-access layer — see D-028. No direct Prisma usage outside this folder.
+│   │   ├── user/                      # findUserById/ByEmail, listUsersBySchool, createUser, updateUser, deactivateUser
+│   │   └── role/                      # findRoleById/ByName, listRoles, createRole
+│   ├── services/                    # Business-logic layer, composed from repositories — see D-028
+│   │   └── identity/                  # createIdentityUser() — validated create + role lookup + transactional AuditLog write
+│   └── validators/                  # Zod schemas for repository/service inputs — see D-028; overlaps in stated
+│                                       # purpose with the pre-existing, still-empty lib/validations/ — flagged in TASKS.md, not yet reconciled
 ├── prisma/
-│   ├── schema.prisma                # AuditLog, School, AcademicYear (Migrations 000-001) — see MIGRATION_PLAN.md
-│   ├── seed.ts                       # Seeds one School + one AcademicYear from src/config/school.ts
+│   ├── schema.prisma                # AuditLog, School, AcademicYear, Role, User, Account, Session, VerificationToken
+│   │                                   # (Migrations 000-002) — see MIGRATION_PLAN.md
+│   ├── seed.ts                       # Seeds one School + one AcademicYear + 3 Roles (Administrator/Principal/Teacher) — no Users
 │   └── migrations/
 │       ├── 20260718000000_audit_foundation/
-│       └── 20260718000100_school_foundation/
+│       ├── 20260718000100_school_foundation/
+│       └── 20260718000200_identity_foundation/
 ├── docs/                            # This documentation set
 └── public/                          # Static assets (favicon, static images)
 ```

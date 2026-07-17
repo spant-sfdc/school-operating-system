@@ -11,7 +11,7 @@ Prisma supports splitting `schema.prisma` across multiple files in a `prisma/sch
 ```
 prisma/schema/
   school.prisma          (School, AcademicYear, Class, Section, Subject, ClassSubject)
-  identity.prisma         (User, Teacher, TeacherQualification)
+  identity.prisma         (User, Teacher, TeacherQualification, Role, Account, Session, VerificationToken — the last four added in Sprint 1, D-028)
   people.prisma            (Student, Guardian, StudentGuardian)
   admission.prisma          (AdmissionEnquiry, AdmissionApplication, RteDetails, DocumentRecord)
   enrollment.prisma          (Enrollment, TeacherAssignment, PromotionRecord, TransferCertificate)

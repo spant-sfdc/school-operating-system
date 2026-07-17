@@ -12,6 +12,35 @@ Nothing yet.
 
 ---
 
+## [0.17.0] — 2026-07-18 — Sprint 1: Identity Foundation
+
+Migration 002 — `Role`, `User`, `Account`, `Session`, `VerificationToken` (Auth.js `@auth/prisma-adapter` shape, extended with this app's own fields), per [D-028](./DECISIONS.md#d-028--sprint-1-identity-foundation-role-as-a-lookup-table-with-accesslevel-user-merges-authjss-adapter-shape-repositoryservice-layer-introduced). Applied for real to a live Neon PostgreSQL database and verified with live queries — unlike Sprint 0, no database availability limitation this time. No API, UI, or business module built.
+
+### Added
+
+- `prisma/schema.prisma` — `Role` (lookup table: `name`, `accessLevel` enum `ADMIN | TEACHER`, `description`), `User` (Auth.js adapter fields + `schoolId`/`roleId`/`passwordHash`/`deactivatedAt`), `Account`/`Session`/`VerificationToken` (Auth.js's canonical adapter shape — `Account`'s OAuth-response fields kept as literal snake_case field names, a deliberate exception to this project's camelCase convention, since the adapter's own code constructs Prisma calls using those exact keys).
+- `prisma/migrations/20260718000200_identity_foundation/` — applied to the live database via `prisma migrate deploy`.
+- `src/repositories/user/`, `src/repositories/role/` — the project's first data-access layer. `findUserById`/`findUserByEmail`/`listUsersBySchool`/`createUser`/`updateUser`/`deactivateUser`; `findRoleById`/`findRoleByName`/`listRoles`/`createRole`. All accept an optional transaction client, defaulting to the shared singleton.
+- `src/services/identity/` — `createIdentityUser()`: validates input, looks up the role, checks for an existing email, then creates the `User` and writes its `AuditLog` entry in one `db.$transaction`, per `TRANSACTION_BOUNDARIES.md § 1`. Smoke-tested end to end against the live database (created, verified, cleaned up).
+- `src/validators/identity.ts` — Zod schemas: `accessLevelSchema`, `createRoleInputSchema`, `createUserInputSchema`.
+- `prisma/seed.ts` — extended to seed three `Role` rows (Administrator, Principal — both `ADMIN`; Teacher — `TEACHER`), idempotent (skips if a role with the same name already exists). No `User` rows seeded, per this sprint's explicit instruction.
+
+### Verified
+
+- `pnpm run build`, `typecheck`, `lint`, `format:check` — all clean.
+- `prisma validate`, `prisma migrate status` — schema valid, database up to date (3/3 migrations applied).
+- Live database queries confirm: 3 `Role` rows, 0 `User` rows, 0 `AuditLog` rows (smoke-test rows cleaned up after verification).
+- `grep` confirms zero direct `db.user`/`db.role`/`db.account`/`db.session`/`db.verificationToken` access outside `src/repositories/`.
+
+### Known Issues
+
+- The Auth.js provider decision (credentials vs. email magic link, `ARCHITECTURE.md § 9`) remains open; `src/lib/auth.ts` is still unbuilt. This schema supports either without redesign.
+- `AuditLog`'s append-only grant-revocation and partitioning (deferred since Sprint 0, `D-027`) are still not applied.
+- `src/lib/validations/` (empty since Phase 0B.1) and the new `src/validators/` now overlap in stated purpose — flagged, not resolved.
+- Migration 002 (Academic Structure, per `MIGRATION_PLAN.md`'s original table) is still not built; this sprint's Migration 002 folder implements different content (Identity) — see `MIGRATION_PLAN.md`'s Sprint 1 status note.
+
+---
+
 ## [0.16.0] — 2026-07-18 — Sprint 0: Data Foundation
 
 The first real application code and database schema — `AuditLog` (Migration 000) and `School`/`AcademicYear` (Migration 001) only, per [D-027](./DECISIONS.md#d-027--sprint-0-data-foundation-migrations-000-001-implemented-prisma-7-config-model-schoolstatusseed-placeholders). No later migration, API route, or UI built. Not applied to a live database — none is available in this environment; schema-validated and SQL-generated (`prisma migrate diff`) only.
