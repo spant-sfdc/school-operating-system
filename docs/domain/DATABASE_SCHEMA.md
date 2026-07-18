@@ -136,6 +136,16 @@ model TeacherQualification {
   deletedAt       DateTime?
 }
 
+// Implementation note (Sprint 3, 2026-07-19): the real prisma/schema.prisma
+// corrects `admissionNumber` to `@@unique([schoolId, admissionNumber])`, not
+// the bare `@unique` shown below — docs/database/DATABASE_REVIEW.md § 2
+// flags the global-uniqueness shown here as wrong (two schools would
+// independently issue "STU-001"), the same class of gap D-025/D-026 already
+// fixed for TransferCertificate.tcNumber. `udisePen` stays genuinely global
+// (a real national identifier). `Student` also has no `deletedAt` in the
+// real schema — DATABASE_REVIEW.md § 2 recommends `status` as the only
+// lifecycle signal, matching this illustrative block already (no
+// `deletedAt` shown below either). See D-031.
 model Student {
   schoolId        String
   school          School   @relation(fields: [schoolId], references: [schoolId])

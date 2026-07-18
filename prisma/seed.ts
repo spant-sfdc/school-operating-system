@@ -61,6 +61,79 @@ const GENERIC_SUBJECT_NAMES = [
 // design), so a plain sentinel string is safe here.
 const SEED_ACTOR_USER_ID = "system-seed";
 
+// Minimal generic sample data for Sprint 3 — Student Foundation. Common,
+// generic Indian names (equivalent in genericness to "John Smith"),
+// deliberately not modeled on any real person, consistent with the same
+// discipline the public site's own content applies to real facts about
+// Pant Public School specifically (this is seed/test data, not public
+// content, but the "never fabricate a specific real identity" spirit still
+// applies). Guardians are shared across siblings, matching a real family
+// structure and keeping the total at exactly 3, per this sprint's
+// instruction.
+const GENERIC_GUARDIAN_SEEDS = [
+  { firstName: "Ramesh", lastName: "Kumar", phone: "9800000001" },
+  { firstName: "Sunita", lastName: "Sharma", phone: "9800000002" },
+  { firstName: "Vijay", lastName: "Singh", phone: "9800000003" },
+] as const;
+
+const GENERIC_STUDENT_SEEDS = [
+  {
+    admissionNumber: "STU-0001",
+    firstName: "Aarav",
+    lastName: "Kumar",
+    dateOfBirth: "2019-08-15",
+    className: "Class 1",
+    sectionName: "A",
+    rollNumber: "1",
+    guardianPhone: "9800000001",
+    relationshipType: "FATHER" as const,
+  },
+  {
+    admissionNumber: "STU-0002",
+    firstName: "Diya",
+    lastName: "Kumar",
+    dateOfBirth: "2017-03-22",
+    className: "Class 3",
+    sectionName: "A",
+    rollNumber: "1",
+    guardianPhone: "9800000001",
+    relationshipType: "FATHER" as const,
+  },
+  {
+    admissionNumber: "STU-0003",
+    firstName: "Ishaan",
+    lastName: "Sharma",
+    dateOfBirth: "2022-11-05",
+    className: "Nursery",
+    sectionName: "A",
+    rollNumber: "1",
+    guardianPhone: "9800000002",
+    relationshipType: "MOTHER" as const,
+  },
+  {
+    admissionNumber: "STU-0004",
+    firstName: "Ananya",
+    lastName: "Singh",
+    dateOfBirth: "2015-06-30",
+    className: "Class 5",
+    sectionName: "A",
+    rollNumber: "1",
+    guardianPhone: "9800000003",
+    relationshipType: "FATHER" as const,
+  },
+  {
+    admissionNumber: "STU-0005",
+    firstName: "Kabir",
+    lastName: "Singh",
+    dateOfBirth: "2016-01-10",
+    className: "Class 5",
+    sectionName: "A",
+    rollNumber: "2",
+    guardianPhone: "9800000003",
+    relationshipType: "FATHER" as const,
+  },
+] as const;
+
 async function main() {
   // Dynamic imports, not static ones: these transitively import
   // src/lib/db → src/lib/env, which parses process.env at module
@@ -154,6 +227,92 @@ async function main() {
   }
 
   console.log(`Seeded subjects: ${GENERIC_SUBJECT_NAMES.join(", ")}.`);
+
+  // Sprint 3 — Student Foundation. Guardians resolved (not re-created) by
+  // phone before each student, so siblings correctly share one Guardian
+  // row and re-running this script stays idempotent.
+  const { findGuardiansByPhone, createGuardian } = await import("../src/repositories/guardian");
+  const { findStudentByAdmissionNumber } = await import("../src/repositories/student");
+  const { listSectionsByClassAndYear } = await import("../src/repositories/section");
+  const { findEnrollmentByStudentAndYear } = await import("../src/repositories/enrollment");
+  const { registerStudent, enrollStudent } = await import("../src/services/student");
+
+  const guardianIdByPhone = new Map<string, string>();
+  for (const guardianSeed of GENERIC_GUARDIAN_SEEDS) {
+    const [existing] = await findGuardiansByPhone(school.schoolId, guardianSeed.phone);
+    const guardian =
+      existing ??
+      (await createGuardian({
+        firstName: guardianSeed.firstName,
+        lastName: guardianSeed.lastName,
+        phone: guardianSeed.phone,
+        school: { connect: { schoolId: school.schoolId } },
+      }));
+    guardianIdByPhone.set(guardianSeed.phone, guardian.id);
+  }
+
+  console.log(
+    `Seeded guardians: ${GENERIC_GUARDIAN_SEEDS.map((g) => `${g.firstName} ${g.lastName}`).join(", ")}.`,
+  );
+
+  for (const studentSeed of GENERIC_STUDENT_SEEDS) {
+    let student = await findStudentByAdmissionNumber(school.schoolId, studentSeed.admissionNumber);
+
+    if (!student) {
+      const guardianId = guardianIdByPhone.get(studentSeed.guardianPhone);
+      if (!guardianId) throw new Error(`No seeded guardian for phone ${studentSeed.guardianPhone}`);
+
+      const dto = await registerStudent(
+        {
+          schoolId: school.schoolId,
+          firstName: studentSeed.firstName,
+          lastName: studentSeed.lastName,
+          dateOfBirth: new Date(studentSeed.dateOfBirth),
+          admissionNumber: studentSeed.admissionNumber,
+          guardians: [
+            {
+              guardianId,
+              relationshipType: studentSeed.relationshipType,
+              isPrimaryContact: true,
+              isAuthorizedForPickup: true,
+            },
+          ],
+        },
+        SEED_ACTOR_USER_ID,
+      );
+      student = await findStudentByAdmissionNumber(school.schoolId, dto.admissionNumber);
+    }
+
+    if (!student)
+      throw new Error(`Failed to resolve seeded student ${studentSeed.admissionNumber}`);
+
+    const alreadyEnrolled = await findEnrollmentByStudentAndYear(student.id, academicYear.id);
+    if (alreadyEnrolled) continue;
+
+    const schoolClass = await findSchoolClassByName(school.schoolId, studentSeed.className);
+    if (!schoolClass) throw new Error(`Seeded class not found: ${studentSeed.className}`);
+
+    const sections = await listSectionsByClassAndYear(schoolClass.id, academicYear.id);
+    const section = sections.find((s) => s.name === studentSeed.sectionName);
+    if (!section)
+      throw new Error(
+        `Seeded section not found: ${studentSeed.className}-${studentSeed.sectionName}`,
+      );
+
+    await enrollStudent(
+      {
+        studentId: student.id,
+        academicYearId: academicYear.id,
+        sectionId: section.id,
+        rollNumber: studentSeed.rollNumber,
+      },
+      SEED_ACTOR_USER_ID,
+    );
+  }
+
+  console.log(
+    `Seeded ${GENERIC_STUDENT_SEEDS.length} students, each enrolled into ${label}'s academic structure.`,
+  );
 }
 
 main()

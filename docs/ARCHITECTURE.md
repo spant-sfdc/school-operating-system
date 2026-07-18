@@ -96,7 +96,8 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   ├── seo.ts                   # buildPageMetadata()/buildPageJsonLd() — imports config/seo.ts, see DECISIONS.md § D-018
 │   │   ├── validations/              # THE canonical Zod-schema location, app-wide — see D-029
 │   │   │   ├── identity.ts              # Role/User input schemas
-│   │   │   └── academic.ts              # SchoolClass/Section/Subject input schemas — see D-030
+│   │   │   ├── academic.ts              # SchoolClass/Section/Subject input schemas — see D-030
+│   │   │   └── student.ts               # Student/Guardian/Enrollment input schemas — see D-031
 │   │   └── utils.ts                 # cn() and other shared helpers
 │   ├── config/                      # Centralized site config — see DECISIONS.md § D-018
 │   │   ├── school.ts                  # Canonical identity facts (name, location, contact, principal, etc.)
@@ -107,27 +108,35 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   └── seo.ts                     # SEO_DEFAULTS consumed by lib/seo.ts
 │   ├── hooks/                       # Shared custom hooks
 │   ├── types/                       # Shared TypeScript types
-│   ├── repositories/                # Data-access layer — see D-028/D-030. No direct Prisma usage outside this folder.
+│   ├── repositories/                # Data-access layer — see D-028/D-030/D-031. No direct Prisma usage outside this folder.
 │   │   ├── user/                      # findUserById/ByEmail, listUsersBySchool, createUser, updateUser, deactivateUser
 │   │   ├── role/                      # findRoleById/ByName, listRoles, createRole
 │   │   ├── school/                    # findSchoolById, upsertSchool
 │   │   ├── academicYear/              # findCurrentAcademicYear, findAcademicYearByLabel, upsertAcademicYear
 │   │   ├── schoolClass/               # findSchoolClassById/ByName, listSchoolClassesBySchool, createSchoolClass
 │   │   ├── section/                   # findSectionById, listSectionsByClassAndYear, createSection
-│   │   └── subject/                   # findSubjectById/ByName, listSubjectsBySchool, createSubject
-│   └── services/                    # Business-logic layer, composed from repositories — see D-028/D-030
+│   │   ├── subject/                   # findSubjectById/ByName, listSubjectsBySchool, createSubject
+│   │   ├── student/                   # findStudentById/ByAdmissionNumber, listActiveStudentsBySchool, createStudent,
+│   │   │                                 # linkGuardianToStudent, listGuardiansForStudent (StudentGuardian has no own repo)
+│   │   ├── guardian/                  # findGuardianById, findGuardiansByPhone, createGuardian, listStudentsForGuardian
+│   │   └── enrollment/                # findEnrollmentById/ByStudentAndYear, listEnrollmentsBySection, createEnrollment
+│   └── services/                    # Business-logic layer, composed from repositories — see D-028/D-030/D-031
 │       ├── identity/                  # createIdentityUser() — validated create + role lookup + transactional AuditLog write
-│       └── academic/                  # createSchoolClassWithSections(), createAcademicSubject()
+│       ├── academic/                  # createSchoolClassWithSections(), createAcademicSubject()
+│       └── student/                   # registerStudent(), enrollStudent() — lifecycle-oriented, not CRUD; the first
+│                                         # DTO layer (student.dto.ts, guardian.dto.ts, enrollment.dto.ts) — see D-031
 ├── prisma/
 │   ├── schema.prisma                # AuditLog, School, AcademicYear, Role, User, Account, Session, VerificationToken,
-│   │                                   # SchoolClass, Section, Subject (Migrations 000-003) — see MIGRATION_PLAN.md
+│   │                                   # SchoolClass, Section, Subject, Student, Guardian, StudentGuardian, Enrollment
+│   │                                   # (Migrations 000-004) — see MIGRATION_PLAN.md
 │   ├── seed.ts                       # Seeds School + AcademicYear + 3 Roles + 11 SchoolClasses (Nursery-8, sections A/B)
-│   │                                   # + 10 generic Subjects — no Users, no ClassSubject links
+│   │                                   # + 10 generic Subjects + 3 Guardians + 5 Students, enrolled — see D-031
 │   └── migrations/
 │       ├── 20260718000000_audit_foundation/
 │       ├── 20260718000100_school_foundation/
 │       ├── 20260718000200_identity_foundation/
-│       └── 20260718000300_academic_foundation/
+│       ├── 20260718000300_academic_foundation/
+│       └── 20260718184429_student_foundation/
 ├── docs/                            # This documentation set
 └── public/                          # Static assets (favicon, static images)
 ```

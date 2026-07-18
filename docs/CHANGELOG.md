@@ -12,6 +12,39 @@ Nothing yet.
 
 ---
 
+## [0.19.0] — 2026-07-19 — Sprint 3: Student Foundation
+
+Migration 004 — `Student`, `Guardian`, `StudentGuardian`, `Enrollment` — applied for real to the live Neon database, per [D-031](./DECISIONS.md#d-031--sprint-3-student-foundation-dto-layer-introduced-admissionnumber-scope-fix-two-lifecycle-operations-instead-of-one-transaction-contention-bug-found-and-fixed). Introduces the project's first DTO layer. No API, UI, Teacher, Attendance, Examination, Admission, Promotion, or Transfer Certificate module built.
+
+### Added
+
+- `prisma/schema.prisma` — `Student` (no `deletedAt`; `status` is the only lifecycle signal, per `DATABASE_REVIEW.md § 2`), `Guardian`, `StudentGuardian` (`relationshipType` promoted to a native enum), `Enrollment` (UUIDv7 primary key, the aggregate root for academic history, no delete mechanism of any kind).
+- `prisma/migrations/20260718184429_student_foundation/` — applied via `prisma migrate deploy`; one hand-added partial unique index (`student_guardians`, `WHERE deleted_at IS NULL`).
+- `src/repositories/{student,guardian,enrollment}/` — three repositories; `StudentGuardian` has no dedicated repository (not in this sprint's named list) — its access lives on the Student/Guardian repositories instead.
+- `src/services/student/` — `registerStudent()` and `enrollStudent()`, two lifecycle-oriented functions (not one combined CRUD-shaped function), each transactional and audit-logged. The project's first DTO layer: `student.dto.ts`, `guardian.dto.ts`, `enrollment.dto.ts` — every exported service function returns a DTO, confirmed by grep that no raw Prisma model crosses the service boundary. `StudentDTO` deliberately excludes `udisePen` (a minor's government ID, DPDP Act 2023-relevant PII).
+- `src/lib/validations/student.ts` — Zod schemas, including a `guardianLinkInputSchema` refinement requiring exactly one of `guardianId` (existing) or `newGuardian` (create).
+- `prisma/seed.ts` — extended to seed 3 generic guardians and 5 generic students (two sibling pairs sharing a guardian), each enrolled into Sprint 2's academic structure. Idempotent.
+
+### Fixed
+
+- Found and fixed a real transaction-connection-contention bug: `registerStudent()`'s first implementation looked up an existing `Guardian` via the shared `db` singleton from _inside_ an open `db.$transaction()` callback — a read competing with the transaction's dedicated connection for the same Neon connection pool, surfaced as a genuine driver deprecation warning the first time the seed script's create path actually ran (not caught by `typecheck`/`lint`/`prisma validate`). Fixed by resolving every referenced existing `Guardian` before the transaction opens.
+- `Student.admissionNumber` corrected to `@@unique([schoolId, admissionNumber])` — `docs/domain/DATABASE_SCHEMA.md`'s illustrative block showed it globally unique; `docs/database/DATABASE_REVIEW.md § 2` already flagged this as wrong, the same class of gap previously fixed for `TransferCertificate.tcNumber`.
+
+### Verified
+
+- `pnpm run build`, `typecheck`, `lint`, `format:check` — all clean.
+- `prisma validate`, `prisma migrate status` — schema valid, database up to date (5/5 migrations applied).
+- Live database: 3 `Guardian`, 5 `Student`, 5 `StudentGuardian`, 5 `Enrollment` rows, exactly matching the two sibling pairs' shared-guardian structure. Idempotent re-run confirmed unchanged.
+- `grep` confirms zero direct `db.<model>` access outside `src/repositories/` (13 Prisma models with data), and zero raw Prisma model type in any exported `services/student/` function's return position.
+- Self-review confirms: Attendance and Examination can both be built without further changes to Student/Guardian/Enrollment (both reference `Enrollment`, not `Student`, directly); no circular dependency between `student`/`academic`/`identity` modules.
+
+### Known Issues
+
+- `TeacherAssignment` (the other half of `MIGRATION_PLAN.md`'s original "005" row) remains unbuilt, blocked on `Teacher`.
+- Sprint 1/2's identity/academic services still return raw Prisma models, not DTOs — this sprint's DTO requirement is explicitly "from this sprint onward," not retroactive.
+
+---
+
 ## [0.18.0] — 2026-07-18 — Sprint 2: Academic Foundation
 
 Migration 003 — `SchoolClass`, `Section`, `Subject` — applied for real to the live Neon database, per [D-030](./DECISIONS.md#d-030--sprint-2-academic-foundation-schoolclass-naming-classsubject-deferred-repository-retrofit-for-schoolacademicyear). Also retrofits `School`/`AcademicYear` with real repositories and refactors `prisma/seed.ts` to stop constructing its own Prisma client. No API, UI, Student, Teacher, or Attendance/Examination module built.

@@ -101,6 +101,9 @@ model School {
   academicYears AcademicYear[]
   users         User[]
   schoolClasses SchoolClass[]
+  students      Student[]
+  guardians     Guardian[]
+  enrollments   Enrollment[]
   subjects      Subject[]
 
   @@map("schools")
@@ -123,7 +126,8 @@ model AcademicYear {
   createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  sections Section[]
+  sections    Section[]
+  enrollments Enrollment[]
 
   @@unique([schoolId, label])
   @@index([schoolId, isCurrent])
@@ -325,6 +329,8 @@ model Section {
   createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  enrollments Enrollment[]
+
   @@index([schoolClassId, academicYearId, name])
   @@map("sections")
 }
@@ -341,4 +347,148 @@ model Subject {
 
   @@index([schoolId, name])
   @@map("subjects")
+}
+
+// --- Migration 004: Student Foundation --------------------------------------
+// Sprint 3. Student, Guardian, StudentGuardian, Enrollment — see
+// docs/database/MIGRATION_PLAN.md's Sprint 3 status note and
+// docs/DECISIONS.md's Sprint 3 entry.
+//
+// `Student.admissionNumber` is `@@unique([schoolId, admissionNumber])`, not
+// globally unique — docs/domain/DATABASE_SCHEMA.md § 4's illustrative block
+// shows it as a bare `@unique`, but docs/database/DATABASE_REVIEW.md § 2
+// explicitly flags this as wrong ("two schools will independently issue
+// STU-001"), the same class of gap D-025/D-026 already fixed for
+// TransferCertificate.tcNumber. `udisePen` stays genuinely globally unique
+// (a real national identifier, correctly cross-school).
+//
+// Per docs/database/DATABASE_REVIEW.md § 2, `Student` has NO `deletedAt` —
+// `status` is the only lifecycle signal; a second delete mechanism would
+// create two competing "is this student gone" answers.
+//
+// `Enrollment.id` uses a time-ordered ID (UUIDv7), per
+// docs/database/DATABASE_REVIEW.md § 8/§ 11 — it's the FK target every
+// future high-volume child table (AttendanceRecord, MarksRecord) will
+// reference, so insertion-ordered IDs here improve those tables' own index
+// locality, consistent with this project's existing ULID/UUIDv7 adoption
+// for AuditLog. `Enrollment` itself has no delete mechanism of any kind —
+// it IS the append-only history record.
+//
+// `StudentGuardian.relationshipType` promoted to a native enum per
+// docs/database/ENUM_STRATEGY.md § 2 (already listed there as a
+// recommended-enum field, "fixed small enum, not school-configurable").
+
+enum StudentStatus {
+  ACTIVE
+  ALUMNI
+  TRANSFERRED_OUT
+  WITHDRAWN
+
+  @@map("student_status")
+}
+
+enum RelationshipType {
+  FATHER
+  MOTHER
+  LEGAL_GUARDIAN
+  OTHER
+
+  @@map("relationship_type")
+}
+
+model Student {
+  id              String        @id @default(cuid())
+  schoolId        String        @map("school_id")
+  school          School        @relation(fields: [schoolId], references: [schoolId])
+  firstName       String        @map("first_name")
+  lastName        String        @map("last_name")
+  dateOfBirth     DateTime      @map("date_of_birth") @db.Timestamptz(3)
+  gender          String?
+  photoUrl        String?       @map("photo_url")
+  udisePen        String?       @unique @map("udise_pen")
+  admissionNumber String        @map("admission_number")
+  category        String?
+  status          StudentStatus @default(ACTIVE)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  studentGuardians StudentGuardian[]
+  enrollments      Enrollment[]
+
+  @@unique([schoolId, admissionNumber])
+  @@index([schoolId, status])
+  @@map("students")
+}
+
+model Guardian {
+  id        String    @id @default(cuid())
+  schoolId  String    @map("school_id")
+  school    School    @relation(fields: [schoolId], references: [schoolId])
+  firstName String    @map("first_name")
+  lastName  String    @map("last_name")
+  phone     String
+  email     String?
+  address   String?
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  studentGuardians StudentGuardian[]
+
+  // No uniqueness on phone, deliberately — docs/database/DATABASE_REVIEW.md
+  // § 3: two different guardian records can legitimately share a phone
+  // number. Indexed anyway — "a parent calls, staff looks them up by
+  // phone" is this table's single most important query pattern.
+  @@index([phone])
+  @@map("guardians")
+}
+
+// Join table. `(studentId, guardianId)` uniqueness is scoped
+// WHERE deleted_at IS NULL — a hand-added partial unique index, same
+// pattern as Migration 003's soft-deletable tables, per
+// docs/database/SOFT_DELETE_STRATEGY.md § 2. The plain @@index below
+// supports that hand-added constraint; it is not the constraint itself.
+model StudentGuardian {
+  id                    String           @id @default(cuid())
+  studentId             String           @map("student_id")
+  student               Student          @relation(fields: [studentId], references: [id])
+  guardianId            String           @map("guardian_id")
+  guardian              Guardian         @relation(fields: [guardianId], references: [id])
+  relationshipType      RelationshipType @map("relationship_type")
+  isPrimaryContact      Boolean          @default(false) @map("is_primary_contact")
+  isAuthorizedForPickup Boolean          @default(false) @map("is_authorized_for_pickup")
+  deletedAt             DateTime?        @map("deleted_at") @db.Timestamptz(3)
+  createdAt             DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([studentId, guardianId])
+  // "All children of this guardian" per docs/database/DATABASE_REVIEW.md
+  // § 3 — the unique's leading column is studentId, so this needs its own
+  // index rather than relying on the composite above.
+  @@index([guardianId])
+  @@map("student_guardians")
+}
+
+// The aggregate root for all academic history — see
+// docs/database/DATABASE_REVIEW.md § 1's "Identity vs. Fact" principle and
+// § 8. No delete mechanism of any kind, not even deletedAt: a promotion or
+// withdrawal creates a new Enrollment or sets status elsewhere
+// (PromotionRecord, out of this sprint's scope) — it never removes one.
+model Enrollment {
+  id             String       @id @default(uuid(7))
+  schoolId       String       @map("school_id")
+  school         School       @relation(fields: [schoolId], references: [schoolId])
+  studentId      String       @map("student_id")
+  student        Student      @relation(fields: [studentId], references: [id])
+  academicYearId String       @map("academic_year_id")
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
+  sectionId      String       @map("section_id")
+  section        Section      @relation(fields: [sectionId], references: [id])
+  rollNumber     String       @map("roll_number")
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([studentId, academicYearId])
+  @@unique([sectionId, rollNumber])
+  @@map("enrollments")
 }
