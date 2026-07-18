@@ -134,6 +134,55 @@ const GENERIC_STUDENT_SEEDS = [
   },
 ] as const;
 
+// Sprint 4 — Teacher Foundation. Generic sample data, never
+// Pant-Public-School-specific — same discipline as the guardian/student
+// seeds above. Emails use example.com, IANA's reserved
+// documentation/example domain (RFC 2606) — deliberately not a fabricated
+// real address.
+const GENERIC_TEACHER_SEEDS = [
+  {
+    email: "meera.joshi@example.com",
+    firstName: "Meera",
+    lastName: "Joshi",
+    phone: "9900000001",
+    qualifications: [
+      { qualificationType: "B.Ed", institution: "State University", yearCompleted: 2015 },
+      { qualificationType: "TET" },
+    ],
+    assignments: [
+      { className: "Class 1", sectionName: "A", isClassTeacher: true as const },
+      { className: "Class 1", sectionName: "A", subjectName: "Mathematics" },
+    ],
+  },
+  {
+    email: "arjun.nair@example.com",
+    firstName: "Arjun",
+    lastName: "Nair",
+    phone: "9900000002",
+    qualifications: [
+      { qualificationType: "B.Ed", institution: "State University", yearCompleted: 2012 },
+    ],
+    assignments: [
+      { className: "Class 3", sectionName: "A", subjectName: "English" },
+      { className: "Class 5", sectionName: "A", subjectName: "English" },
+    ],
+  },
+  {
+    email: "priya.reddy@example.com",
+    firstName: "Priya",
+    lastName: "Reddy",
+    phone: "9900000003",
+    qualifications: [
+      { qualificationType: "M.Ed", institution: "State University", yearCompleted: 2018 },
+      { qualificationType: "B.Ed", institution: "State University", yearCompleted: 2016 },
+    ],
+    assignments: [
+      { className: "Class 5", sectionName: "A", isClassTeacher: true as const },
+      { className: "Class 5", sectionName: "A", subjectName: "Science" },
+    ],
+  },
+] as const;
+
 async function main() {
   // Dynamic imports, not static ones: these transitively import
   // src/lib/db → src/lib/env, which parses process.env at module
@@ -312,6 +361,84 @@ async function main() {
 
   console.log(
     `Seeded ${GENERIC_STUDENT_SEEDS.length} students, each enrolled into ${label}'s academic structure.`,
+  );
+
+  // Sprint 4 — Teacher Foundation.
+  const { findUserByEmail } = await import("../src/repositories/user");
+  const { findTeacherByUserId } = await import("../src/repositories/teacher");
+  const { listAssignmentsForSection } = await import("../src/repositories/teacherAssignment");
+  const { registerTeacher, assignTeacher } = await import("../src/services/teacher");
+
+  const teacherRole = await findRoleByName("Teacher");
+  if (!teacherRole) throw new Error("Expected the Teacher role to already be seeded.");
+
+  for (const teacherSeed of GENERIC_TEACHER_SEEDS) {
+    const existingUser = await findUserByEmail(teacherSeed.email);
+    let teacher = existingUser ? await findTeacherByUserId(existingUser.id) : null;
+
+    if (!teacher) {
+      await registerTeacher(
+        {
+          schoolId: school.schoolId,
+          roleId: teacherRole.id,
+          email: teacherSeed.email,
+          firstName: teacherSeed.firstName,
+          lastName: teacherSeed.lastName,
+          phone: teacherSeed.phone,
+          qualifications: teacherSeed.qualifications.map((q) => ({ ...q })),
+        },
+        SEED_ACTOR_USER_ID,
+      );
+      const newUser = await findUserByEmail(teacherSeed.email);
+      teacher = newUser ? await findTeacherByUserId(newUser.id) : null;
+    }
+
+    if (!teacher) throw new Error(`Failed to resolve seeded teacher ${teacherSeed.email}`);
+
+    for (const assignmentSeed of teacherSeed.assignments) {
+      const schoolClass = await findSchoolClassByName(school.schoolId, assignmentSeed.className);
+      if (!schoolClass) throw new Error(`Seeded class not found: ${assignmentSeed.className}`);
+
+      const sections = await listSectionsByClassAndYear(schoolClass.id, academicYear.id);
+      const section = sections.find((s) => s.name === assignmentSeed.sectionName);
+      if (!section) {
+        throw new Error(
+          `Seeded section not found: ${assignmentSeed.className}-${assignmentSeed.sectionName}`,
+        );
+      }
+
+      const existingSectionAssignments = await listAssignmentsForSection(
+        section.id,
+        academicYear.id,
+      );
+      const isClassTeacher = "isClassTeacher" in assignmentSeed && assignmentSeed.isClassTeacher;
+      const subjectName = "subjectName" in assignmentSeed ? assignmentSeed.subjectName : undefined;
+
+      const alreadyAssigned = existingSectionAssignments.some((a) =>
+        isClassTeacher
+          ? a.isClassTeacher && a.teacherId === teacher.id
+          : a.subject?.name === subjectName && a.teacherId === teacher.id,
+      );
+      if (alreadyAssigned) continue;
+
+      const subject = subjectName ? await findSubjectByName(school.schoolId, subjectName) : null;
+      if (subjectName && !subject) throw new Error(`Seeded subject not found: ${subjectName}`);
+
+      await assignTeacher(
+        {
+          teacherId: teacher.id,
+          academicYearId: academicYear.id,
+          sectionId: section.id,
+          subjectId: subject?.id,
+          isClassTeacher: Boolean(isClassTeacher),
+        },
+        SEED_ACTOR_USER_ID,
+      );
+    }
+  }
+
+  console.log(
+    `Seeded ${GENERIC_TEACHER_SEEDS.length} teachers with qualifications and assignments.`,
   );
 }
 

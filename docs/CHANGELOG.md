@@ -12,6 +12,40 @@ Nothing yet.
 
 ---
 
+## [0.20.0] — 2026-07-19 — Sprint 4: Teacher Foundation
+
+Migration 005 — `Teacher`, `TeacherQualification`, `TeacherAssignment` — applied for real to the live Neon database, per [D-032](./DECISIONS.md#d-032--sprint-4-teacher-foundation-repository-dependency-rule-made-explicit-registerteacher-composes-createuser-updateteacherassignment-soft-deletes-rather-than-mutates), completing the migration slot Sprint 3 half-filled. Documents the "repositories never call repositories" rule permanently for the first time. No API, UI, Attendance, Timetable, Leave Management, Payroll, Examination, or Notifications module built.
+
+### Added
+
+- `prisma/schema.prisma` — `Teacher` (no `deletedAt`, same `status`-only lifecycle precedent as `Student`), `TeacherQualification` (`qualificationType` stays a plain `String` — the `ENUM_STRATEGY.md`-recommended lookup table deliberately deferred, would mean inventing an entity), `TeacherAssignment` (two separate uniqueness mechanisms: a Prisma-native `@@unique` for subject-assignment rows, a hand-added partial unique index for "exactly one Class Teacher per section per year" — Postgres treats multiple `NULL` `subjectId`s as distinct, so the native constraint alone doesn't cover it).
+- `prisma/migrations/20260718192844_teacher_foundation/` — applied via `prisma migrate deploy`.
+- `src/repositories/{teacher,teacherQualification,teacherAssignment}/` — three repositories; confirmed by grep that none imports another repository.
+- `src/services/teacher/` — `registerTeacher()` (composes `createUser()` from the identity domain with `createTeacher()`/`createTeacherQualification()` in one transaction, matching `TRANSACTION_BOUNDARIES.md`'s "Teacher onboarding" row exactly), `assignTeacher()`, `updateTeacherAssignment()` (ends and replaces, never mutates a live row), `deactivateTeacher()`. First service to use a `dto/` subfolder.
+- `src/lib/validations/teacher.ts` — Zod schemas, including a `replacement`-shaped input for `updateTeacherAssignment()`.
+- `docs/engineering/ENGINEERING_PRINCIPLES.md` — new permanent document collecting the repository/service/DTO layering rules established across Sprints 1-4 in one place, per this sprint's own explicit instruction ("if not yet documented permanently, document it... without rewriting existing documentation").
+- `prisma/seed.ts` — extended to seed 3 generic teachers with qualifications and assignments (subject + Class Teacher) into Sprint 2's academic structure. Idempotent.
+
+### Fixed
+
+- Found and fixed a second, distinct cause of the "client already executing a query" deprecation warning — confirmed via `--trace-warnings` stack traces to originate from Prisma's own query engine decomposing a `create()+include` call into multiple physical queries inside an open interactive transaction, not Sprint 3's application-level connection-contention bug. Fixed for `TeacherAssignment` by removing `include` from the transactional create and doing a separate, standalone read after commit. Confirmed the same benign pattern pre-exists in Sprint 3's `enrollment.repository.ts`, deliberately not fixed there — out of this sprint's scope, flagged as future cleanup.
+
+### Verified
+
+- `pnpm run build`, `typecheck`, `lint`, `format:check` — all clean.
+- `prisma validate`, `prisma migrate status` — schema valid, database up to date (6/6 migrations applied).
+- Live database: 3 `Teacher`, 5 `TeacherQualification`, 6 `TeacherAssignment` rows, matching the seeded structure exactly (two Class Teacher designations, four subject assignments, one teacher covering the same subject across two sections). Idempotent re-run confirmed.
+- `grep` confirms zero direct `db.<model>` access outside `src/repositories/` (13 Prisma models with data), zero repository importing another repository, and zero raw Prisma model in any exported `services/teacher/` function's return position.
+- Self-review confirms: Attendance, Timetable, and Examination can all be built without further changes to Teacher/TeacherAssignment; no hidden coupling to Student (confirmed by grep — only comment-level precedent references); `TeacherAssignment`'s ownership under `services/teacher/` (not `services/academic/`) affirmed as correct, matching the task's own explicit examples and Admin's mental model of "assigning a teacher," not "scheduling a class."
+
+### Known Issues
+
+- `QualificationType` lookup table remains a real, named, deferred improvement (would require inventing an entity, out of this sprint's scope).
+- The `create()+include`-inside-transaction pattern still exists in Sprint 3's `enrollment.repository.ts` — benign (a warning, not incorrect data), real future cleanup.
+- Whether deactivating a Teacher should also end their active `TeacherAssignment` rows is deliberately left unmodeled — a real product decision for a future "remove teacher" admin flow to make explicitly.
+
+---
+
 ## [0.19.0] — 2026-07-19 — Sprint 3: Student Foundation
 
 Migration 004 — `Student`, `Guardian`, `StudentGuardian`, `Enrollment` — applied for real to the live Neon database, per [D-031](./DECISIONS.md#d-031--sprint-3-student-foundation-dto-layer-introduced-admissionnumber-scope-fix-two-lifecycle-operations-instead-of-one-transaction-contention-bug-found-and-fixed). Introduces the project's first DTO layer. No API, UI, Teacher, Attendance, Examination, Admission, Promotion, or Transfer Certificate module built.

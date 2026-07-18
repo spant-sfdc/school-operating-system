@@ -105,6 +105,7 @@ model School {
   guardians     Guardian[]
   enrollments   Enrollment[]
   subjects      Subject[]
+  teachers      Teacher[]
 
   @@map("schools")
 }
@@ -126,8 +127,9 @@ model AcademicYear {
   createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  sections    Section[]
-  enrollments Enrollment[]
+  sections           Section[]
+  enrollments        Enrollment[]
+  teacherAssignments TeacherAssignment[]
 
   @@unique([schoolId, label])
   @@index([schoolId, isCurrent])
@@ -215,6 +217,7 @@ model User {
 
   accounts Account[]
   sessions Session[]
+  teacher  Teacher?
 
   @@index([schoolId])
   @@index([roleId])
@@ -329,7 +332,8 @@ model Section {
   createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  enrollments Enrollment[]
+  enrollments        Enrollment[]
+  teacherAssignments TeacherAssignment[]
 
   @@index([schoolClassId, academicYearId, name])
   @@map("sections")
@@ -344,6 +348,8 @@ model Subject {
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  teacherAssignments TeacherAssignment[]
 
   @@index([schoolId, name])
   @@map("subjects")
@@ -491,4 +497,104 @@ model Enrollment {
   @@unique([studentId, academicYearId])
   @@unique([sectionId, rollNumber])
   @@map("enrollments")
+}
+
+// --- Migration 005: Teacher Foundation --------------------------------------
+// Sprint 4. Teacher, TeacherQualification, TeacherAssignment — see
+// docs/database/MIGRATION_PLAN.md's Sprint 4 status note and
+// docs/DECISIONS.md's Sprint 4 entry.
+//
+// `Teacher` has no `deletedAt`, matching `Student`'s precedent — DOMAIN_MODEL.md
+// § 4.5 states the same "status is the only lifecycle signal" invariant
+// (ACTIVE | ON_LEAVE | EXITED) that docs/database/DATABASE_REVIEW.md § 2
+// explicitly established for Student; Teacher itself isn't one of that
+// document's 11 reviewed entities, so this applies that already-established
+// principle to new but analogous territory, not a fresh judgment call.
+//
+// `TeacherQualification.qualificationType` stays a plain String, NOT the
+// lookup table docs/database/ENUM_STRATEGY.md § 5 recommends
+// (`QualificationType: id, code, label, satisfiesRteMinimum`) — building
+// that table now would mean inventing a new entity beyond this sprint's
+// explicit "Do NOT invent entities" scope. Flagged as a real, documented,
+// deliberately-deferred future improvement, not silently dropped.
+//
+// `TeacherAssignment` needs two separate constraints, not one — per
+// docs/database/DATABASE_REVIEW.md § 7: `@@unique([academicYearId,
+// sectionId, subjectId])` (Prisma-native, covers subject-assignment rows)
+// does NOT enforce "exactly one class teacher per section per year", since
+// Postgres treats multiple NULL `subjectId` values as distinct, not
+// colliding. That rule needs its own hand-added partial unique index
+// (`WHERE is_class_teacher = true`), same pattern as every other partial
+// unique index in this schema.
+
+enum TeacherStatus {
+  ACTIVE
+  ON_LEAVE
+  EXITED
+
+  @@map("teacher_status")
+}
+
+model Teacher {
+  id          String        @id @default(cuid())
+  schoolId    String        @map("school_id")
+  school      School        @relation(fields: [schoolId], references: [schoolId])
+  userId      String        @unique @map("user_id")
+  user        User          @relation(fields: [userId], references: [id])
+  firstName   String        @map("first_name")
+  lastName    String        @map("last_name")
+  phone       String
+  gender      String?
+  dateOfBirth DateTime?     @map("date_of_birth") @db.Timestamptz(3)
+  photoUrl    String?       @map("photo_url")
+  status      TeacherStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  qualifications TeacherQualification[]
+  assignments    TeacherAssignment[]
+
+  @@map("teachers")
+}
+
+model TeacherQualification {
+  id                    String    @id @default(cuid())
+  teacherId             String    @map("teacher_id")
+  teacher               Teacher   @relation(fields: [teacherId], references: [id])
+  qualificationType     String    @map("qualification_type")
+  institution           String?
+  yearCompleted         Int?      @map("year_completed")
+  certificateDocumentId String?   @map("certificate_document_id")
+  deletedAt             DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([teacherId])
+  @@map("teacher_qualifications")
+}
+
+model TeacherAssignment {
+  id             String       @id @default(cuid())
+  academicYearId String       @map("academic_year_id")
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
+  teacherId      String       @map("teacher_id")
+  teacher        Teacher      @relation(fields: [teacherId], references: [id])
+  sectionId      String       @map("section_id")
+  section        Section      @relation(fields: [sectionId], references: [id])
+  subjectId      String?      @map("subject_id")
+  subject        Subject?     @relation(fields: [subjectId], references: [id])
+  isClassTeacher Boolean      @default(false) @map("is_class_teacher")
+  deletedAt      DateTime?    @map("deleted_at") @db.Timestamptz(3)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([academicYearId, sectionId, subjectId])
+  @@index([teacherId, academicYearId])
+  // The permission-check query ("is this teacher allowed to touch this
+  // section"), run on every attendance/marks mutation once those exist —
+  // docs/database/DATABASE_REVIEW.md § 7 names this "one of the
+  // hottest-path lookups in the whole schema despite the table itself
+  // being small."
+  @@index([sectionId, academicYearId])
+  @@map("teacher_assignments")
 }

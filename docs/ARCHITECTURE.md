@@ -97,7 +97,8 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   ├── validations/              # THE canonical Zod-schema location, app-wide — see D-029
 │   │   │   ├── identity.ts              # Role/User input schemas
 │   │   │   ├── academic.ts              # SchoolClass/Section/Subject input schemas — see D-030
-│   │   │   └── student.ts               # Student/Guardian/Enrollment input schemas — see D-031
+│   │   │   ├── student.ts               # Student/Guardian/Enrollment input schemas — see D-031
+│   │   │   └── teacher.ts               # Teacher/TeacherQualification/TeacherAssignment input schemas — see D-032
 │   │   └── utils.ts                 # cn() and other shared helpers
 │   ├── config/                      # Centralized site config — see DECISIONS.md § D-018
 │   │   ├── school.ts                  # Canonical identity facts (name, location, contact, principal, etc.)
@@ -108,7 +109,9 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   └── seo.ts                     # SEO_DEFAULTS consumed by lib/seo.ts
 │   ├── hooks/                       # Shared custom hooks
 │   ├── types/                       # Shared TypeScript types
-│   ├── repositories/                # Data-access layer — see D-028/D-030/D-031. No direct Prisma usage outside this folder.
+│   ├── repositories/                # Data-access layer — see D-028/D-030/D-031/D-032 and
+│   │   │                               # docs/engineering/ENGINEERING_PRINCIPLES.md. No direct Prisma usage outside this
+│   │   │                               # folder; no repository imports another repository.
 │   │   ├── user/                      # findUserById/ByEmail, listUsersBySchool, createUser, updateUser, deactivateUser
 │   │   ├── role/                      # findRoleById/ByName, listRoles, createRole
 │   │   ├── school/                    # findSchoolById, upsertSchool
@@ -119,25 +122,34 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   ├── student/                   # findStudentById/ByAdmissionNumber, listActiveStudentsBySchool, createStudent,
 │   │   │                                 # linkGuardianToStudent, listGuardiansForStudent (StudentGuardian has no own repo)
 │   │   ├── guardian/                  # findGuardianById, findGuardiansByPhone, createGuardian, listStudentsForGuardian
-│   │   └── enrollment/                # findEnrollmentById/ByStudentAndYear, listEnrollmentsBySection, createEnrollment
-│   └── services/                    # Business-logic layer, composed from repositories — see D-028/D-030/D-031
+│   │   ├── enrollment/                # findEnrollmentById/ByStudentAndYear, listEnrollmentsBySection, createEnrollment
+│   │   ├── teacher/                   # findTeacherById/ByUserId, listActiveTeachersBySchool, createTeacher, updateTeacherStatus
+│   │   ├── teacherQualification/      # findTeacherQualificationById, listQualificationsForTeacher, createTeacherQualification
+│   │   └── teacherAssignment/         # findTeacherAssignmentById, findClassTeacherForSection, findSubjectAssignment,
+│   │                                     # listAssignmentsForTeacher/Section, createTeacherAssignment, deactivateTeacherAssignment
+│   └── services/                    # Business-logic layer, composed from repositories — see D-028/D-030/D-031/D-032
 │       ├── identity/                  # createIdentityUser() — validated create + role lookup + transactional AuditLog write
 │       ├── academic/                  # createSchoolClassWithSections(), createAcademicSubject()
-│       └── student/                   # registerStudent(), enrollStudent() — lifecycle-oriented, not CRUD; the first
-│                                         # DTO layer (student.dto.ts, guardian.dto.ts, enrollment.dto.ts) — see D-031
+│       ├── student/                   # registerStudent(), enrollStudent() — lifecycle-oriented, not CRUD; the first
+│       │                                 # DTO layer (student.dto.ts, guardian.dto.ts, enrollment.dto.ts) — see D-031
+│       └── teacher/                   # registerTeacher(), assignTeacher(), updateTeacherAssignment(),
+│                                         # deactivateTeacher() — dto/ subfolder (teacher.dto.ts,
+│                                         # teacherQualification.dto.ts, teacherAssignment.dto.ts) — see D-032
 ├── prisma/
 │   ├── schema.prisma                # AuditLog, School, AcademicYear, Role, User, Account, Session, VerificationToken,
-│   │                                   # SchoolClass, Section, Subject, Student, Guardian, StudentGuardian, Enrollment
-│   │                                   # (Migrations 000-004) — see MIGRATION_PLAN.md
+│   │                                   # SchoolClass, Section, Subject, Student, Guardian, StudentGuardian, Enrollment,
+│   │                                   # Teacher, TeacherQualification, TeacherAssignment (Migrations 000-005)
 │   ├── seed.ts                       # Seeds School + AcademicYear + 3 Roles + 11 SchoolClasses (Nursery-8, sections A/B)
-│   │                                   # + 10 generic Subjects + 3 Guardians + 5 Students, enrolled — see D-031
+│   │                                   # + 10 generic Subjects + 3 Guardians + 5 Students, enrolled + 3 Teachers with
+│   │                                   # qualifications and assignments — see D-031, D-032
 │   └── migrations/
 │       ├── 20260718000000_audit_foundation/
 │       ├── 20260718000100_school_foundation/
 │       ├── 20260718000200_identity_foundation/
 │       ├── 20260718000300_academic_foundation/
-│       └── 20260718184429_student_foundation/
-├── docs/                            # This documentation set
+│       ├── 20260718184429_student_foundation/
+│       └── 20260718192844_teacher_foundation/
+├── docs/                            # This documentation set (docs/engineering/ — cross-cutting engineering rules, see D-032)
 └── public/                          # Static assets (favicon, static images)
 ```
 
