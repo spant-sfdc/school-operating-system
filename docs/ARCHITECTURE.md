@@ -98,7 +98,8 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   │   ├── identity.ts              # Role/User input schemas
 │   │   │   ├── academic.ts              # SchoolClass/Section/Subject input schemas — see D-030
 │   │   │   ├── student.ts               # Student/Guardian/Enrollment input schemas — see D-031
-│   │   │   └── teacher.ts               # Teacher/TeacherQualification/TeacherAssignment input schemas — see D-032
+│   │   │   ├── teacher.ts               # Teacher/TeacherQualification/TeacherAssignment input schemas — see D-032
+│   │   │   └── attendance.ts           # AttendanceSession/AttendanceRecord input schemas — see D-033
 │   │   └── utils.ts                 # cn() and other shared helpers
 │   ├── config/                      # Centralized site config — see DECISIONS.md § D-018
 │   │   ├── school.ts                  # Canonical identity facts (name, location, contact, principal, etc.)
@@ -125,30 +126,40 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   ├── enrollment/                # findEnrollmentById/ByStudentAndYear, listEnrollmentsBySection, createEnrollment
 │   │   ├── teacher/                   # findTeacherById/ByUserId, listActiveTeachersBySchool, createTeacher, updateTeacherStatus
 │   │   ├── teacherQualification/      # findTeacherQualificationById, listQualificationsForTeacher, createTeacherQualification
-│   │   └── teacherAssignment/         # findTeacherAssignmentById, findClassTeacherForSection, findSubjectAssignment,
-│   │                                     # listAssignmentsForTeacher/Section, createTeacherAssignment, deactivateTeacherAssignment
-│   └── services/                    # Business-logic layer, composed from repositories — see D-028/D-030/D-031/D-032
+│   │   ├── teacherAssignment/         # findTeacherAssignmentById, findClassTeacherForSection, findSubjectAssignment,
+│   │   │                                 # listAssignmentsForTeacher/Section, createTeacherAssignment, deactivateTeacherAssignment
+│   │   ├── attendanceSession/         # findAttendanceSessionById/BySectionAndDate, createAttendanceSession,
+│   │   │                                 # updateAttendanceSessionEditMeta
+│   │   └── attendanceRecord/          # findAttendanceRecordById/BySessionAndEnrollment, listAttendanceRecordsForSession,
+│   │                                     # upsertAttendanceRecord — see D-033
+│   └── services/                    # Business-logic layer, composed from repositories — see D-028/D-030/D-031/D-032/D-033
 │       ├── identity/                  # createIdentityUser() — validated create + role lookup + transactional AuditLog write
 │       ├── academic/                  # createSchoolClassWithSections(), createAcademicSubject()
 │       ├── student/                   # registerStudent(), enrollStudent() — lifecycle-oriented, not CRUD; the first
 │       │                                 # DTO layer (student.dto.ts, guardian.dto.ts, enrollment.dto.ts) — see D-031
-│       └── teacher/                   # registerTeacher(), assignTeacher(), updateTeacherAssignment(),
-│                                         # deactivateTeacher() — dto/ subfolder (teacher.dto.ts,
-│                                         # teacherQualification.dto.ts, teacherAssignment.dto.ts) — see D-032
+│       ├── teacher/                   # registerTeacher(), assignTeacher(), updateTeacherAssignment(),
+│       │                                 # deactivateTeacher() — dto/ subfolder (teacher.dto.ts,
+│       │                                 # teacherQualification.dto.ts, teacherAssignment.dto.ts) — see D-032
+│       └── attendance/                # openAttendanceSession(), markAttendance(), submitAttendance(),
+│                                         # reopenAttendance() — dto/ subfolder (attendanceSession.dto.ts,
+│                                         # attendanceRecord.dto.ts) — see D-033
 ├── prisma/
 │   ├── schema.prisma                # AuditLog, School, AcademicYear, Role, User, Account, Session, VerificationToken,
 │   │                                   # SchoolClass, Section, Subject, Student, Guardian, StudentGuardian, Enrollment,
-│   │                                   # Teacher, TeacherQualification, TeacherAssignment (Migrations 000-005)
+│   │                                   # Teacher, TeacherQualification, TeacherAssignment, AttendanceSession,
+│   │                                   # AttendanceRecord (Migrations 000-006)
 │   ├── seed.ts                       # Seeds School + AcademicYear + 3 Roles + 11 SchoolClasses (Nursery-8, sections A/B)
 │   │                                   # + 10 generic Subjects + 3 Guardians + 5 Students, enrolled + 3 Teachers with
-│   │                                   # qualifications and assignments — see D-031, D-032
+│   │                                   # qualifications/assignments + 1 AttendanceSession with 2 AttendanceRecords —
+│   │                                   # see D-031, D-032, D-033
 │   └── migrations/
 │       ├── 20260718000000_audit_foundation/
 │       ├── 20260718000100_school_foundation/
 │       ├── 20260718000200_identity_foundation/
 │       ├── 20260718000300_academic_foundation/
 │       ├── 20260718184429_student_foundation/
-│       └── 20260718192844_teacher_foundation/
+│       ├── 20260718192844_teacher_foundation/
+│       └── 20260718201440_attendance_foundation/
 ├── docs/                            # This documentation set (docs/engineering/ — cross-cutting engineering rules, see D-032)
 └── public/                          # Static assets (favicon, static images)
 ```

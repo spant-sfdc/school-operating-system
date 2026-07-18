@@ -98,14 +98,15 @@ model School {
   createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  academicYears AcademicYear[]
-  users         User[]
-  schoolClasses SchoolClass[]
-  students      Student[]
-  guardians     Guardian[]
-  enrollments   Enrollment[]
-  subjects      Subject[]
-  teachers      Teacher[]
+  academicYears      AcademicYear[]
+  users              User[]
+  schoolClasses      SchoolClass[]
+  students           Student[]
+  guardians          Guardian[]
+  enrollments        Enrollment[]
+  subjects           Subject[]
+  teachers           Teacher[]
+  attendanceSessions AttendanceSession[]
 
   @@map("schools")
 }
@@ -334,6 +335,7 @@ model Section {
 
   enrollments        Enrollment[]
   teacherAssignments TeacherAssignment[]
+  attendanceSessions AttendanceSession[]
 
   @@index([schoolClassId, academicYearId, name])
   @@map("sections")
@@ -494,6 +496,8 @@ model Enrollment {
   createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  attendanceRecords AttendanceRecord[]
+
   @@unique([studentId, academicYearId])
   @@unique([sectionId, rollNumber])
   @@map("enrollments")
@@ -597,4 +601,88 @@ model TeacherAssignment {
   // being small."
   @@index([sectionId, academicYearId])
   @@map("teacher_assignments")
+}
+
+// --- Migration 006: Attendance ----------------------------------------------
+// Sprint 5. AttendanceSession, AttendanceRecord — see
+// docs/database/MIGRATION_PLAN.md's Sprint 5 status note and
+// docs/DECISIONS.md's Sprint 5 entry.
+//
+// AttendanceRecord uses a time-ordered ID (UUIDv7), per
+// docs/database/DATABASE_REVIEW.md § 9/§ 11 and MIGRATION_PLAN.md's own "006
+// — Attendance" row ("apply the ULID/UUIDv7 primary key decision here, not
+// retrofitted later") — the first genuinely high-volume table in the schema
+// (600K-6.6M rows/school over 15 years). AttendanceSession stays cuid2 —
+// trivial volume, one row per section per day.
+//
+// AttendanceSession carries its own schoolId directly, even though it's
+// transitively scoped via Section -> SchoolClass -> School, matching
+// Enrollment's own precedent (Migration 004) — docs/database/DATABASE_REVIEW.md
+// § 9 names "(schoolId, date), for Admin's cross-section oversight view ('all
+// sessions today, across every section')" as a needed composite index, which
+// requires the direct column rather than a join through Section on every
+// oversight-view query.
+//
+// markedByUserId/lastEditedByUserId are plain String columns, not Prisma
+// relations to User — matching docs/domain/DATABASE_SCHEMA.md § 7's own
+// illustrative shape and the same "who did this" pattern already used
+// elsewhere in this schema without a formal relation (AuditLog.actorUserId,
+// MarksRecord.enteredByUserId/lastEditedByUserId, TransferCertificate.issuedByUserId,
+// DocumentRecord.uploadedByUserId) — avoids adding two more back-relation
+// arrays to User for an audit-style reference.
+//
+// Neither table has a deletedAt or status field — per
+// docs/database/SOFT_DELETE_STRATEGY.md § 1's third category ("historical
+// fact/measurement — no delete mechanism at all"): a day's attendance,
+// once taken, isn't deleted; corrections are audited edits
+// (lastEditedByUserId/lastEditedAt on AttendanceSession), never row removal.
+// AttendanceStatus is a native Postgres enum per docs/database/ENUM_STRATEGY.md
+// § 2 — fixed, universal, not school-configurable
+// (docs/domain/DOMAIN_MODEL.md § 7.2).
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  HALF_DAY
+  LEAVE
+
+  @@map("attendance_status")
+}
+
+model AttendanceSession {
+  id                 String    @id @default(cuid())
+  schoolId           String    @map("school_id")
+  school             School    @relation(fields: [schoolId], references: [schoolId])
+  sectionId          String    @map("section_id")
+  section            Section   @relation(fields: [sectionId], references: [id])
+  date               DateTime  @db.Date
+  markedByUserId     String    @map("marked_by_user_id")
+  lastEditedByUserId String?   @map("last_edited_by_user_id")
+  lastEditedAt       DateTime? @map("last_edited_at") @db.Timestamptz(3)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  records AttendanceRecord[]
+
+  @@unique([sectionId, date])
+  @@index([schoolId, date])
+  @@map("attendance_sessions")
+}
+
+model AttendanceRecord {
+  id           String            @id @default(uuid(7))
+  sessionId    String            @map("session_id")
+  session      AttendanceSession @relation(fields: [sessionId], references: [id])
+  enrollmentId String            @map("enrollment_id")
+  enrollment   Enrollment        @relation(fields: [enrollmentId], references: [id])
+  status       AttendanceStatus
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  // "This student's attendance history for the year" — the existing unique
+  // constraint below leads with sessionId, so this needs its own index, per
+  // docs/database/DATABASE_REVIEW.md § 9.
+  @@unique([sessionId, enrollmentId])
+  @@index([enrollmentId])
+  @@map("attendance_records")
 }

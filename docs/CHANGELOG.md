@@ -12,6 +12,30 @@ Nothing yet.
 
 ---
 
+## [0.21.0] — 2026-07-19 — Sprint 5: Attendance Engine
+
+Migration 006 — `AttendanceSession`, `AttendanceRecord` — applied for real to the live Neon database, per [D-033](./DECISIONS.md#d-033--sprint-5-attendance-engine-openattendancesessionsubmitattendancemarkattendance-kept-as-three-distinct-operations-attendancesession-carries-its-own-schoolid-enrollment-section-scoping-enforced-in-the-service). The first genuinely high-volume table in the schema — `AttendanceRecord` uses a time-ordered UUIDv7 primary key from this first migration. No API, UI, Timetable, Leave Management, Notifications, Reports, or Examination module built.
+
+### Added
+
+- `prisma/schema.prisma` — `AttendanceStatus` enum (`PRESENT`/`ABSENT`/`HALF_DAY`/`LEAVE`); `AttendanceSession` (carries its own `schoolId` directly, matching `Enrollment`'s precedent, for the `(schoolId, date)` oversight-view index; no `deletedAt`/status field — corrections are audited edits, never row removal); `AttendanceRecord` (references `Enrollment`, never `Student` directly, per the task's own "Attendance belongs to Enrollment" architectural decision).
+- `prisma/migrations/20260718201440_attendance_foundation/` — applied via `prisma migrate deploy`.
+- `src/repositories/{attendanceSession,attendanceRecord}/` — two repositories; confirmed by grep that neither imports another repository.
+- `src/services/attendance/` — `openAttendanceSession()` (idempotent get-or-create for a section+day), `markAttendance()` (single-record correction primitive), `submitAttendance()` (the real batch submission — a whole section's roster upserted in one transaction, matching `TRANSACTION_BOUNDARIES.md`'s "Daily attendance submission" row exactly), `reopenAttendance()` (a pure read — no separate open/closed status exists to toggle). Every write path enforces that a marked `Enrollment` belongs to the session's own section, not just the same academic year.
+- `src/lib/validations/attendance.ts` — Zod schemas for all four lifecycle operations.
+- `prisma/seed.ts` — extended to seed 1 `AttendanceSession` (Class 5-A, the section with an already-assigned Class Teacher) with 2 real `AttendanceRecord` rows (Sprint 3's actual enrollment data tops out at 2 students in any single section — see D-033 for why this intentionally differs from the task's literal "five" figure). Idempotent.
+
+### Verified
+
+- `pnpm run build`, `typecheck`, `lint`, `format:check` — all clean.
+- `prisma validate`, `prisma migrate status` — schema valid, database up to date (7/7 migrations applied).
+- Live database: 1 `AttendanceSession`, 2 `AttendanceRecord` rows, matching the seeded structure exactly. Idempotent re-run confirmed (counts unchanged).
+- `pnpm exec tsx --trace-warnings prisma/seed.ts` — no recurrence of Sprint 4's `create()+include`-inside-transaction warning; only the pre-existing, unrelated SSL-mode deprecation notice.
+- `grep` confirms zero direct `db.<model>` access outside `src/repositories/`, zero repository importing another repository, and every exported `services/attendance/` function returns a DTO.
+- Self-review confirms: Examination and Reports can both be built without any further change to Attendance (neither references `AttendanceSession`/`AttendanceRecord` in the domain model); `AttendanceSession` is the local aggregate root for the attendance-taking event itself, nested under `Enrollment`'s broader academic-history root; `AttendanceRecord` is deliberately mutable-with-audit-trail, not immutable, matching `DATABASE_REVIEW.md` § 14's own established category for this table.
+
+---
+
 ## [0.20.0] — 2026-07-19 — Sprint 4: Teacher Foundation
 
 Migration 005 — `Teacher`, `TeacherQualification`, `TeacherAssignment` — applied for real to the live Neon database, per [D-032](./DECISIONS.md#d-032--sprint-4-teacher-foundation-repository-dependency-rule-made-explicit-registerteacher-composes-createuser-updateteacherassignment-soft-deletes-rather-than-mutates), completing the migration slot Sprint 3 half-filled. Documents the "repositories never call repositories" rule permanently for the first time. No API, UI, Attendance, Timetable, Leave Management, Payroll, Examination, or Notifications module built.

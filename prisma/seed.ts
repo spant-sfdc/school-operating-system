@@ -440,6 +440,75 @@ async function main() {
   console.log(
     `Seeded ${GENERIC_TEACHER_SEEDS.length} teachers with qualifications and assignments.`,
   );
+
+  // Sprint 5 — Attendance Engine. One AttendanceSession, for Class 5-A —
+  // the section with an already-seeded Class Teacher (Priya Reddy), the
+  // realistic person to be marking her own section's daily attendance.
+  // Sprint 3 seeded exactly 5 students total, spread across 4 different
+  // sections (Class 1-A, Class 3-A, Nursery-A, Class 5-A), with at most 2
+  // students in any single section — Class 5-A's own real roster is 2
+  // students (Ananya Singh, Kabir Singh), not 5. Marking all 5 of Sprint
+  // 3's students in one session isn't possible without either violating
+  // this sprint's own "AttendanceRecord belongs to an Enrollment in the
+  // session's section" business rule, or fabricating enrollments outside
+  // this sprint's explicit Attendance-only scope — this seed marks exactly
+  // the students who are genuinely enrolled in the one session's section,
+  // consistent with every prior sprint's "generic, never fabricated" seed
+  // discipline.
+  const { listEnrollmentsBySection } = await import("../src/repositories/enrollment");
+  const { openAttendanceSession, submitAttendance } = await import("../src/services/attendance");
+
+  const attendanceClass = await findSchoolClassByName(school.schoolId, "Class 5");
+  if (!attendanceClass) throw new Error("Seeded class not found: Class 5");
+
+  const attendanceSections = await listSectionsByClassAndYear(attendanceClass.id, academicYear.id);
+  const attendanceSection = attendanceSections.find((s) => s.name === "A");
+  if (!attendanceSection) throw new Error("Seeded section not found: Class 5-A");
+
+  const classTeacherUser = await findUserByEmail("priya.reddy@example.com");
+  if (!classTeacherUser) {
+    throw new Error("Expected seeded teacher priya.reddy@example.com to already exist.");
+  }
+
+  const attendanceEnrollments = await listEnrollmentsBySection(
+    attendanceSection.id,
+    academicYear.id,
+  );
+
+  const today = new Date();
+  const attendanceDate = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+
+  const session = await openAttendanceSession(
+    {
+      sectionId: attendanceSection.id,
+      date: attendanceDate,
+      markedByUserId: classTeacherUser.id,
+    },
+    SEED_ACTOR_USER_ID,
+  );
+
+  // Roll "1" (Ananya Singh) present, roll "2" (Kabir Singh) absent — varied
+  // statuses, not a uniform all-present seed, so the data is representative.
+  const statusByRollNumber: Record<string, "PRESENT" | "ABSENT"> = {
+    "1": "PRESENT",
+    "2": "ABSENT",
+  };
+
+  await submitAttendance(
+    {
+      sessionId: session.id,
+      submittedByUserId: classTeacherUser.id,
+      records: attendanceEnrollments.map((enrollment) => ({
+        enrollmentId: enrollment.id,
+        status: statusByRollNumber[enrollment.rollNumber] ?? "PRESENT",
+      })),
+    },
+    SEED_ACTOR_USER_ID,
+  );
+
+  console.log(
+    `Seeded 1 attendance session for ${attendanceClass.name}-${attendanceSection.name} on ${attendanceDate.toISOString().slice(0, 10)}, with ${attendanceEnrollments.length} attendance records.`,
+  );
 }
 
 main()
