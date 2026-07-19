@@ -12,6 +12,25 @@ Nothing yet.
 
 ---
 
+## [0.24.1] — 2026-07-19 — Sprint B2.1: Authentication Stabilization & Verification
+
+Investigated a release-blocking report ("Bootstrap Administrator cannot log in") end to end. **Root cause: not a code defect.** Sprint B2's own verification testing had changed the Bootstrap Administrator's live password while exercising `/change-password`, and never restored it — so the live database silently diverged from `docs/development/DEVELOPMENT_LOGIN.md`. Every layer of the authentication pipeline (seed script, `authenticateUser()`, Credentials provider, JWT/session callbacks, middleware, login UI) was traced and confirmed correct. See [D-037](./DECISIONS.md#d-037--sprint-b21-authentication-stabilization-root-cause-was-stale-live-credentials-not-a-code-defect).
+
+### Fixed
+
+- Live Bootstrap Administrator (`bootstrap-admin@school.invalid`) password hash restored to the documented value (`ChangeMeImmediately123!`), `mustChangePassword` re-armed to `true`, via `updateUserPassword()` + `writeAuditLog()` (the same path an Admin-initiated reset uses) — not a raw SQL update, not a re-seed. No source code changed.
+
+### Documentation
+
+- `docs/development/DEVELOPMENT_LOGIN.md` — added § 4b, a known-pitfall note: testing `/change-password` against the documented account changes its live password, invalidating this document until it's restored.
+- `docs/DECISIONS.md` — added D-037.
+
+### Verified
+
+Login → session (`mustChangePassword: true`) → `/admin` → 307 to `/change-password` → password change → 303 to `/admin` → `/admin`/`/admin/users` 200 → logout → `/admin` → 307 to `/login`, all against a live, freshly-built production server (`next build && next start`) via `curl` mirroring the real login form. Account left with `mustChangePassword: true` afterward so a real first-time login sees the documented forced-password-change screen.
+
+---
+
 ## [0.24.0] — 2026-07-19 — Sprint B2: Bootstrap Administration & User Management Foundation
 
 Functional (not polished) User Management for Administrator/Teacher accounts — Create, Edit, Activate/Deactivate, Reset Password, Search/Filter, self-service password change — plus resolution of both open questions Sprint B1 left unresolved. See [D-036](./DECISIONS.md#d-036--sprint-b2-administration--user-management-foundation-usermustchangepassword-column-centralized-libauthorization-orchestrated-not-modified-registerteachercreateidentityuser-cookie-flashed-temporary-passwords). No Student/Guardian management, Attendance UI, Dashboard polish, Notifications, Forgot Password, or Email integration built.
