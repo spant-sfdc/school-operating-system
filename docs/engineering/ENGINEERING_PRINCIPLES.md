@@ -67,6 +67,12 @@ A DTO's field list is a deliberate choice, not a mechanical copy of the underlyi
 
 Established in [D-029](../DECISIONS.md#d-029--final-identity-architecture-review-validators-consolidated-into-libvalidations-roleiduseraccesslevel-design-affirmed): every Zod schema, for every domain, lives under `src/lib/validations/` (`identity.ts`, `academic.ts`, `student.ts`, `teacher.ts`) — not a separate top-level `src/validators/` folder, which existed briefly in Sprint 1 and was consolidated away.
 
+## 9. Third-Party Adapters Managing Their Own Contract Tables Are a Narrow, Named Exception to "No Direct Prisma Outside Repositories"
+
+Established in [D-035](../DECISIONS.md#d-035--sprint-b1-authentication-foundation-jwt-session-strategy-corrects-d-030-empirically-confirmed-incompatible-with-credentials-only-argon2id-in-libsecurity-auth-as-its-own-service-adminteacher-route-groups-renamed-to-real-path-segments): `PrismaAdapter(db)` in `src/lib/auth/config.ts` calls Prisma directly against `Account`, `Session`, and `VerificationToken` — the three tables Sprint 1 already built to Auth.js's own canonical adapter contract shape (see `prisma/schema.prisma`'s Migration 002 header comment), not a business domain model this codebase designed. This is **not** a crack in § 2's "repositories never call repositories, no direct Prisma outside repositories" rule — it is a distinct, narrower situation: a third-party package that owns a fixed table contract by the nature of being a framework integration point, not application code choosing to bypass the repository layer for convenience.
+
+**What this exception does and does not cover:** it applies only to the specific tables a given adapter is documented to own, and only inside the adapter's own instantiation. Every business field on `User` — `roleId`, `schoolId`, `deactivatedAt`, anything this codebase itself defined — is still read exclusively through `src/repositories/user/`, with zero exceptions, verified by the same `grep`-for-`db\.user\.`-outside-repositories check every other sprint has used. If a future third-party integration needs similar treatment (a payment provider's own webhook-verification tables, a future SSO provider's linking tables), the same narrow reasoning applies: named, scoped to that package's own contract tables, and stated explicitly in code comments and here — never a blanket excuse to bypass the repository layer for anything adjacent to the integration.
+
 ---
 
 ## How to Use This File

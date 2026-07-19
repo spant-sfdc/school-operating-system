@@ -12,7 +12,66 @@ Nothing yet.
 
 ---
 
-## [0.21.0] — 2026-07-19 — Sprint 5: Attendance Engine
+## [0.23.0] — 2026-07-19 — Sprint B1: Authentication Foundation
+
+Auth.js Credentials authentication, Argon2id password hashing, login/logout, session management, and route protection for the still-unbuilt Admin/Teacher surfaces — the first real slice of Epic B. Corrects D-030's original "database sessions" decision to JWT after empirically confirming `@auth/core` hard-rejects database sessions with Credentials as the only provider — see [D-035](./DECISIONS.md#d-035--sprint-b1-authentication-foundation-jwt-session-strategy-corrects-d-030-empirically-confirmed-incompatible-with-credentials-only-argon2id-in-libsecurity-auth-as-its-own-service-adminteacher-route-groups-renamed-to-real-path-segments). No User Management, Dashboard, Create User UI, Reset Password, Forgot Password, Student login, or Parent login built.
+
+### Added
+
+- `src/lib/security/password.ts` — `hashPassword()`/`verifyPassword()` via `@node-rs/argon2` (Argon2id). No Auth.js dependency — a general security primitive, reusable anywhere a password ever needs hashing.
+- `src/lib/auth/{config,index}.ts` — Auth.js configuration: Credentials provider (Login ID = `User.email` + password), JWT session strategy, `PrismaAdapter(db)` (scoped only to `Account`/`Session`/`VerificationToken` — a documented, narrow exception to "no direct Prisma outside repositories," see `ENGINEERING_PRINCIPLES.md § 9`), a `session` callback that re-resolves the user from the database on every request so deactivation takes effect immediately, not just at next login.
+- `src/services/auth/` — `authenticateUser()`, `resolveActiveSessionUser()`, `AuthenticatedUserDTO`. One generic `InvalidCredentialsError` for every login-failure reason (no user found, wrong password, no password set, deactivated) — deliberately not distinguished, to avoid account-existence enumeration.
+- `src/lib/validations/auth.ts` — login input schema.
+- `src/types/next-auth.d.ts` — `Session.user` module augmentation (`schoolId`/`roleId`/`roleName`/`accessLevel`).
+- `src/middleware.ts` — Edge-runtime pre-check (`getToken()`, signature verification only, no database) redirecting unauthenticated requests to `/login`. Deliberately does not check role or deactivation — see route guards below.
+- `src/app/admin/layout.tsx`, `src/app/teacher/layout.tsx` — the authoritative, database-backed guard (role match + live deactivation check via `resolveActiveSessionUser()`), plus minimal placeholder `page.tsx` stubs (not dashboards — Next.js never executes a segment's layout while resolving a 404 for a route with zero matching pages, making the guard otherwise untestable).
+- `src/app/(auth)/login/page.tsx`, `src/app/unauthorized/page.tsx` — minimal UI, Server Actions calling `signIn()`/`signOut()` directly.
+- `src/app/api/auth/[...nextauth]/route.ts` — Auth.js's own route handlers.
+- `src/components/ui/{button,input,label,card}.tsx` — this project's first Shadcn-primitive-based components (added via the Shadcn CLI).
+- `prisma/seed.ts` — Bootstrap Administrator, created via a direct repository call (not an HTTP endpoint, per this sprint's explicit instruction). Reads `BOOTSTRAP_ADMIN_EMAIL`/`PASSWORD`/`NAME` from the environment first, falling back to an obvious placeholder (`bootstrap-admin@school.invalid` / `ChangeMeImmediately123!`) for this repository's own dev database.
+
+### Fixed
+
+- `src/app/(admin)/` and `src/app/(teacher)/` — renamed to real `src/app/admin/`/`src/app/teacher/` path segments. Both were parenthesized route groups (Phase 0B.1 scaffolding), which add no URL segment; left as scaffolded, they would have silently collided on every identically-named child path (e.g. both defining `/attendance`) the moment real pages were added. Fixed while both still contained only `.gitkeep` placeholders — the cheapest possible moment.
+
+### Changed
+
+- `docs/engineering/ENGINEERING_PRINCIPLES.md` — added § 9, naming `PrismaAdapter(db)` as a permanent, narrow, documented exception to "no direct Prisma outside repositories."
+- `docs/ARCHITECTURE.md`, `docs/ROUTES.md` — folder tree and route-guard tables updated to reflect the real admin/teacher path segments and the two-tier (Edge + Node) guard design; `ARCHITECTURE.md § 9`'s Auth.js open question marked resolved.
+- `package.json` — `@auth/prisma-adapter`, `@node-rs/argon2` added; `@base-ui/react`/`class-variance-authority` reinstalled (previously removed as orphaned per D-009 — genuinely unused then, genuinely used now by the new Shadcn components).
+
+### Verified
+
+- `pnpm run build`, `typecheck`, `lint`, `format:check` — all clean, including against the actual compiled production build (`next build && next start`), not only `next dev`.
+- `prisma validate` — schema unchanged this sprint (no migration).
+- Live, end-to-end `curl`-driven verification against a running dev server and the production build: login (correct credentials → session with role data attached), logout (session cookie cleared), session persistence across requests, wrong password (rejected, generic error), nonexistent user (rejected identically), deactivated user cannot log in, **mid-session deactivation cuts off an already-issued, still-cryptographically-valid session on its very next request** (the core property the original database-session decision existed to guarantee), unauthenticated access to `/admin`/`/teacher` redirects to `/login` with a `callbackUrl`, wrong-role access redirects to `/unauthorized`, correct-role access succeeds.
+- `grep` confirms zero direct `db.user`/`db.role` access outside `src/repositories/`, with `PrismaAdapter(db)` as the one documented exception exactly where expected.
+
+## [0.22.0] — 2026-07-19 — Delivery Phase Roadmap Reorganization
+
+Planning sprint, not implementation — no code, schema, migration, or service touched, per [D-034](./DECISIONS.md#d-034--delivery-phase-roadmap-clone-per-client-model-supersedes-eventual-saas-framing-epic-reordering). With the Foundation Phase (Sprints 0–5) complete, organized all remaining work into product Epics under the explicit, clarified delivery model: one Master Repository, cloned into an independent repository per client school — never a shared multi-tenant SaaS deployment. Supersedes `PRODUCT_ARCHITECTURE.md § 2` step 4's and `ROADMAP_V2.md`'s prior "eventual SaaS" framing (both received a surgical cross-link, not a rewrite).
+
+### Added
+
+- `docs/product/README.md` — index and self-review for the new Delivery Phase documentation set.
+- `docs/product/EPIC_ROADMAP.md` — the full Epic sequence, challenged and reordered (Client Customization Framework moved from second-to-last to immediately after Administration, parallel with Data Migration Engine — both cheap, both hard blockers for onboarding a second client), with per-epic Purpose/Business Value/Dependencies/Implementation Order/Complexity/Manual Verification/Go-Live Readiness.
+- `docs/product/ADMINISTRATION_STRATEGY.md` — the complete user/password/role lifecycle design: no self-registration ever, Admin-mediated password reset (no notification provider exists yet), no forced periodic password rotation (per current security guidance), soft-delete-only deactivation with explicit-action-only reactivation, and the bootstrap-admin mechanism (a script run directly against the database, never an HTTP route).
+- `docs/product/IMPORT_ENGINE_STRATEGY.md` — the reusable Data Migration Engine design (Upload → Map → Validate → Preview → Commit → Audit), chunked/resumable commits per `TRANSACTION_BOUNDARIES.md § 4`'s Academic Year Rollover precedent, an honest rollback boundary (clean before commit; soft-delete-supported after commit for most entities; no automated rollback for `Enrollment`, which has no delete mechanism at all), and a new `ImportBatch` tracking entity.
+- `docs/product/IMPORT_ENGINE_STRATEGY.md § 5` — Rajasthan RTE integration research from official and directly-observed market sources: no official API or bulk-export exists for `rajpsp.nic.in`; the only real-world "integration" found in the market is a competing vendor's manual copy-paste-into-Excel workflow. Recommends against building any automated integration (API client or scraper) — the Import Engine's ordinary CSV/Excel upload path already covers the legitimate workflow.
+- `docs/product/CLIENT_IMPLEMENTATION_PLAYBOOK.md` — the corrected client delivery sequence. Fixed a real ordering bug in the originally proposed flow (it created a Bootstrap Admin before the database existed); added three missing steps (infrastructure provisioning, real staff account provisioning distinct from the bootstrap account, post-go-live stabilization distinct from steady-state support).
+- `docs/product/CLIENT_CUSTOMIZATION_GUIDE.md` — the literal checklist for what a new client repository must change, what should never need to change, and which documentation sets ship with a client repo vs. reset per client.
+- `docs/product/FRAMEWORK_STRATEGY.md` — the master-vs-client-repo boundary; framework updates reach a client repo only via an explicit `git merge upstream/main`, never automatically or pushed — ruling out any control-plane pattern that would re-introduce SaaS-style multi-tenancy through the back door.
+- `docs/product/VERSIONING_STRATEGY.md` — how semantic versioning extends to many independent client repos with no central registry, by design.
+- `docs/product/GO_LIVE_CHECKLIST.md` — the broader client-deployment go-live gate (infrastructure, data, administration, training), complementing rather than duplicating the existing `docs/onboarding/GO_LIVE_CHECKLIST.md` content-readiness gate.
+
+### Changed
+
+- `docs/PRODUCT_ARCHITECTURE.md § 2` and `docs/ROADMAP_V2.md § Epic H`/`Recommended Next Epic` — each received a short, surgical cross-link to the new `docs/product/` set, marking their prior "eventual SaaS"/multi-tenancy framing as superseded. Neither document was rewritten.
+
+### Verified
+
+- Every recommendation grounded in an already-recorded decision or an existing document's own established reasoning — `Role`/`User` shape (D-028), Credentials-only auth (D-029), no self-registration (D-001), the Academic Year Rollover batching precedent (`TRANSACTION_BOUNDARIES.md § 4`), the soft-delete/append-only boundary (`SOFT_DELETE_STRATEGY.md`).
+- RTE research cited to official government sources (`rajpsp.nic.in`, NIC's Integrated Shala Darpan project page) and one directly-observed competing vendor's own published import instructions — no speculation.
 
 Migration 006 — `AttendanceSession`, `AttendanceRecord` — applied for real to the live Neon database, per [D-033](./DECISIONS.md#d-033--sprint-5-attendance-engine-openattendancesessionsubmitattendancemarkattendance-kept-as-three-distinct-operations-attendancesession-carries-its-own-schoolid-enrollment-section-scoping-enforced-in-the-service). The first genuinely high-volume table in the schema — `AttendanceRecord` uses a time-ordered UUIDv7 primary key from this first migration. No API, UI, Timetable, Leave Management, Notifications, Reports, or Examination module built.
 

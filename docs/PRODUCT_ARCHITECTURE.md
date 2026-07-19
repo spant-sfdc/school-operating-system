@@ -16,6 +16,8 @@ Restated from [ARCHITECTURE.md](./ARCHITECTURE.md), through the lens of "which p
 
 ## 2. Future Architecture
 
+**Superseded as of 2026-07-19 — see [D-034](./DECISIONS.md#d-034--delivery-phase-roadmap-clone-per-client-model-supersedes-eventual-saas-framing-epic-reordering).** Step 4 below named an eventual multi-tenant SaaS as this platform's long-run direction. The Delivery Phase planning sprint made the actual delivery model explicit and directive instead: **one Master Repository, cloned into an independent repository per client school — never a shared multi-tenant deployment.** Steps 1–3 remain accurate (a `schoolId` column existing from the first migration is still correct, for a different reason: it's cheap, harmless, and keeps every model consistent, even though it will never scope more than one school at a time within a single deployment). Step 4 is retained below for its historical reasoning, not as current direction — see [docs/product/EPIC_ROADMAP.md](./product/EPIC_ROADMAP.md) and [docs/product/FRAMEWORK_STRATEGY.md](./product/FRAMEWORK_STRATEGY.md) for the current, authoritative plan.
+
 The target shape, reached incrementally and only as real need proves each step (§ 7 of [PRODUCT_VISION.md](./PRODUCT_VISION.md)):
 
 1. **Today:** one tenant, config-as-code, zero database models.

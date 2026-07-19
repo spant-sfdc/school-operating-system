@@ -1,6 +1,6 @@
 # Architecture
 
-**Status:** Documents the architecture as built through the Public Website Epic (Milestone 6B) — infrastructure, design system, Marketing Section Library, page-composite pattern, and configuration layer are in place; database schema is still empty (Epic B is next, see [ROADMAP_V2.md](./ROADMAP_V2.md)). This document is the canonical reference for what exists **today** — [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md) holds only a condensed summary and links here. For how this architecture is meant to evolve toward a reusable platform, see [PRODUCT_ARCHITECTURE.md](./PRODUCT_ARCHITECTURE.md) — that document does not change anything below; it explains direction, not current state. For naming/formatting conventions that implement this architecture, see [DEVELOPMENT_CONVENTIONS.md](./DEVELOPMENT_CONVENTIONS.md).
+**Status:** Documents the architecture as built through Sprint B1 (Authentication Foundation) — infrastructure, design system, Marketing Section Library, page-composite pattern, configuration layer, the full data foundation (Migrations 000-006), and Auth.js Credentials authentication are in place; Admin/Teacher dashboards themselves remain unbuilt (see [docs/product/EPIC_ROADMAP.md](./product/EPIC_ROADMAP.md) for what's next). This document is the canonical reference for what exists **today** — [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md) holds only a condensed summary and links here. For how this architecture is meant to evolve toward a reusable platform, see [PRODUCT_ARCHITECTURE.md](./PRODUCT_ARCHITECTURE.md) — that document does not change anything below; it explains direction, not current state. For naming/formatting conventions that implement this architecture, see [DEVELOPMENT_CONVENTIONS.md](./DEVELOPMENT_CONVENTIONS.md).
 
 ---
 
@@ -43,6 +43,8 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 ```
 /
 ├── src/
+│   ├── middleware.ts                # Edge-runtime route protection pre-check (getToken() signature check
+│   │                                   # only, no database) — Built, Sprint B1, D-035
 │   ├── app/
 │   │   ├── dev/
 │   │   │   └── playground/          # Dev-only component showcase — 404s in production, see DECISIONS.md § D-015
@@ -54,17 +56,22 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   │   ├── contact/
 │   │   │   └── layout.tsx
 │   │   ├── (auth)/                 # Sign-in flow — shared by Admin & Teacher
-│   │   │   └── login/
-│   │   ├── (admin)/                # Admin-only route group
-│   │   │   ├── layout.tsx            # Auth guard + admin shell
+│   │   │   └── login/                # page.tsx — Auth.js Credentials form — Built, Sprint B1, D-035
+│   │   ├── unauthorized/           # Interim "wrong role" landing page — Built, Sprint B1 (not a route group —
+│   │   │                             # a real top-level page, no auth required to view it)
+│   │   ├── admin/                  # Real path segment, not a route group — renamed from (admin)/ this sprint
+│   │   │   │                         # specifically so /admin/* is a genuine URL prefix, matching ROUTES.md — see D-035
+│   │   │   ├── layout.tsx            # Auth guard (accessLevel === "ADMIN") — Built, Sprint B1
+│   │   │   ├── page.tsx              # Guard-verification stub only, not a dashboard — Built, Sprint B1
 │   │   │   ├── students/
 │   │   │   ├── teachers/
 │   │   │   ├── attendance/
 │   │   │   ├── examinations/
 │   │   │   ├── reports/
 │   │   │   └── settings/
-│   │   ├── (teacher)/              # Teacher-only route group
-│   │   │   ├── layout.tsx            # Auth guard + teacher shell
+│   │   ├── teacher/                # Real path segment, not a route group — renamed from (teacher)/ this sprint
+│   │   │   ├── layout.tsx            # Auth guard (accessLevel === "TEACHER") — Built, Sprint B1
+│   │   │   ├── page.tsx              # Guard-verification stub only, not a dashboard — Built, Sprint B1
 │   │   │   ├── dashboard/
 │   │   │   ├── attendance/
 │   │   │   ├── marks/
@@ -72,13 +79,14 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   │   ├── profile/
 │   │   │   └── leave/
 │   │   └── api/                     # Route Handlers (REST-style endpoints)
-│   │       ├── auth/
+│   │       ├── auth/                 # [...nextauth]/route.ts — Built, Sprint B1
 │   │       ├── students/
 │   │       ├── teachers/
 │   │       ├── attendance/
 │   │       └── examinations/
 │   ├── components/
-│   │   ├── ui/                      # Shadcn primitives (button, input, dialog, table…) + typography
+│   │   ├── ui/                      # Shadcn primitives — typography, button/input/label/card (Built, Sprint B1;
+│   │   │                             # dialog, table, etc. still not yet added)
 │   │   ├── shared/                  # Cross-role reusable composites (theme provider/toggle, empty state, page header)
 │   │   ├── website/                 # Guest/public-site composites — see DECISIONS.md § D-011
 │   │   │   ├── sections/              # Reusable marketing section library — see DECISIONS.md § D-012
@@ -88,7 +96,14 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   ├── admin/                   # Admin-specific composites
 │   │   └── teacher/                 # Teacher-specific composites
 │   ├── lib/
-│   │   ├── auth.ts                  # Auth.js configuration (Phase 2)
+│   │   ├── auth/                     # Auth.js configuration — Built, Sprint B1, D-035 (supersedes the
+│   │   │   │                           # single-file auth.ts placeholder this tree previously showed)
+│   │   │   ├── config.ts                # NextAuthConfig — Credentials provider, JWT session strategy,
+│   │   │   │                              # PrismaAdapter (Account/Session/VerificationToken only — see
+│   │   │   │                              # ENGINEERING_PRINCIPLES.md § 9), session callback
+│   │   │   └── index.ts                 # export const { handlers, auth, signIn, signOut } = NextAuth(authConfig)
+│   │   ├── security/                 # Built, Sprint B1, D-035 — general security primitives, no Auth.js dependency
+│   │   │   └── password.ts              # hashPassword()/verifyPassword() — Argon2id (@node-rs/argon2)
 │   │   ├── db.ts                    # Prisma client singleton — driver adapter (@prisma/adapter-pg), see D-027
 │   │   ├── db-utils.ts               # checkDatabaseHealth(), writeAuditLog() — see D-027
 │   │   ├── env.ts                   # Zod-validated environment variables — see DEVELOPMENT_CONVENTIONS.md § 10
@@ -99,7 +114,8 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   │   ├── academic.ts              # SchoolClass/Section/Subject input schemas — see D-030
 │   │   │   ├── student.ts               # Student/Guardian/Enrollment input schemas — see D-031
 │   │   │   ├── teacher.ts               # Teacher/TeacherQualification/TeacherAssignment input schemas — see D-032
-│   │   │   └── attendance.ts           # AttendanceSession/AttendanceRecord input schemas — see D-033
+│   │   │   ├── attendance.ts           # AttendanceSession/AttendanceRecord input schemas — see D-033
+│   │   │   └── auth.ts                 # Login input schema — see D-035
 │   │   └── utils.ts                 # cn() and other shared helpers
 │   ├── config/                      # Centralized site config — see DECISIONS.md § D-018
 │   │   ├── school.ts                  # Canonical identity facts (name, location, contact, principal, etc.)
@@ -110,6 +126,7 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   └── seo.ts                     # SEO_DEFAULTS consumed by lib/seo.ts
 │   ├── hooks/                       # Shared custom hooks
 │   ├── types/                       # Shared TypeScript types
+│   │   └── next-auth.d.ts             # Session.user module augmentation (schoolId/roleId/roleName/accessLevel) — D-035
 │   ├── repositories/                # Data-access layer — see D-028/D-030/D-031/D-032 and
 │   │   │                               # docs/engineering/ENGINEERING_PRINCIPLES.md. No direct Prisma usage outside this
 │   │   │                               # folder; no repository imports another repository.
@@ -140,9 +157,12 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │       ├── teacher/                   # registerTeacher(), assignTeacher(), updateTeacherAssignment(),
 │       │                                 # deactivateTeacher() — dto/ subfolder (teacher.dto.ts,
 │       │                                 # teacherQualification.dto.ts, teacherAssignment.dto.ts) — see D-032
-│       └── attendance/                # openAttendanceSession(), markAttendance(), submitAttendance(),
-│                                         # reopenAttendance() — dto/ subfolder (attendanceSession.dto.ts,
-│                                         # attendanceRecord.dto.ts) — see D-033
+│       ├── attendance/                # openAttendanceSession(), markAttendance(), submitAttendance(),
+│       │                                 # reopenAttendance() — dto/ subfolder (attendanceSession.dto.ts,
+│       │                                 # attendanceRecord.dto.ts) — see D-033
+│       └── auth/                      # authenticateUser(), resolveActiveSessionUser() — dto/ subfolder
+│                                         # (authenticatedUser.dto.ts). No repository of its own — reuses
+│                                         # src/repositories/user/ entirely — see D-035
 ├── prisma/
 │   ├── schema.prisma                # AuditLog, School, AcademicYear, Role, User, Account, Session, VerificationToken,
 │   │                                   # SchoolClass, Section, Subject, Student, Guardian, StudentGuardian, Enrollment,
@@ -164,7 +184,7 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 └── public/                          # Static assets (favicon, static images)
 ```
 
-**Principle:** Route groups `(public)`, `(admin)`, `(teacher)` create hard visual and logical boundaries. A file inside `(admin)` should never be reachable by a Teacher session, enforced at the layout level, not just by UI hiding.
+**Principle:** `(public)` (a route group — no URL segment) and the real `admin/`/`teacher/` path segments (renamed from route groups this sprint, D-035, specifically so `/admin/*` and `/teacher/*` are genuine, non-colliding URLs) create hard visual and logical boundaries. A file inside `admin/` should never be reachable by a Teacher session, enforced at the layout level, not just by UI hiding.
 
 **Configuration layer (`src/config/`):** School-identity, branding, navigation, contact, social, and SEO-default values are centralized here as plain, framework-free data — see [DECISIONS.md § D-018](./DECISIONS.md#d-018--centralized-configuration-layer-srcconfig). This is deliberately not `lib/` (which holds behavior/utilities) or a page's own `content.ts` (which holds page-specific copy) — it's the one place a fact that's true across the whole site (the school's name, for instance) is defined once.
 
@@ -173,8 +193,8 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 ## 3. Routing Strategy
 
 - **App Router** exclusively — no Pages Router usage.
-- Route groups segment by role: `(public)`, `(auth)`, `(admin)`, `(teacher)`.
-- Each protected route group has a `layout.tsx` that verifies session + role server-side before rendering any child route. Unauthorized access redirects to `/login`, not a client-side error state.
+- Route groups segment by role where no URL prefix is wanted: `(public)`, `(auth)`. `admin/` and `teacher/` are real path segments, not route groups — see D-035 for why (a route group adds no URL segment, and two same-named route groups would otherwise collide on identical child paths).
+- Each protected segment has a `layout.tsx` that verifies session + role server-side before rendering any child route — implemented as a two-tier split (Edge middleware pre-check, Node-runtime layout as the authoritative check), see `ROUTES.md § Route Guards` and D-035 for why. Unauthorized access redirects to `/login` (unauthenticated) or `/unauthorized` (wrong role), not a client-side error state.
 - Dynamic segments (e.g., `students/[id]`) used for entity detail views.
 - No route should perform role checks only on the client. Server-side enforcement is mandatory (see Security Principles).
 
@@ -260,7 +280,7 @@ Layout (role shell: sidebar/topbar)
 
 ## 9. Open Architectural Questions
 
-- Exact Auth.js provider strategy (credentials-based vs. email magic link) for Admin/Teacher accounts
+- ~~Exact Auth.js provider strategy (credentials-based vs. email magic link) for Admin/Teacher accounts~~ — **Resolved (Sprint B1):** Credentials provider, JWT session strategy (not database sessions — `@auth/core` hard-rejects database sessions with Credentials as the only provider; see [DECISIONS.md § D-035](./DECISIONS.md#d-035--sprint-b1-authentication-foundation-jwt-session-strategy-corrects-d-030-empirically-confirmed-incompatible-with-credentials-only-argon2id-in-libsecurity-auth-as-its-own-service-adminteacher-route-groups-renamed-to-real-path-segments)), Argon2id hashing, no self-registration.
 - Multi-tenancy: this is single-school in v1 — confirm no multi-school abstraction is needed prematurely
 - File/document storage conventions in Cloudinary (folder/naming strategy)
 

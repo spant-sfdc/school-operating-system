@@ -28,11 +28,12 @@ No authentication required.
 
 ## 2. Auth Routes — `(auth)` route group
 
-Shared sign-in flow for Admin and Teacher. Not reachable while already authenticated (redirects to the appropriate dashboard).
+Shared sign-in flow for Admin and Teacher.
 
-| Path     | Purpose                       | Notes                                                    |
-| -------- | ----------------------------- | -------------------------------------------------------- |
-| `/login` | Sign-in for Admin and Teacher | Auth.js credential flow; redirects by role after success |
+| Path            | Purpose                           | Notes                                                                                                                                                                                                                            |
+| --------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/login`        | Sign-in for Admin and Teacher     | **Built (Sprint B1):** Auth.js Credentials flow (Login ID = `User.email` + password); redirects to `callbackUrl` on success. Not yet wired to redirect an already-authenticated visitor away — see § Route Guards below for why. |
+| `/unauthorized` | Interim "wrong role" landing page | **Built (Sprint B1):** the temporary target for an authenticated session whose role doesn't match the route it tried to reach — see § Route Guards, not the final design.                                                        |
 
 ## 3. Admin Routes — `(admin)` route group
 
@@ -93,12 +94,19 @@ Placeholder only — do not implement without a recorded decision per [PROJECT_G
 
 ## 6. Route Guards
 
-| Guard                  | Applies to                                                               | Behavior                                                                                                                                                            |
-| ---------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Admin guard            | `(admin)/*`                                                              | `layout.tsx` verifies session + `role: admin` server-side; unauthenticated → redirect `/login`; authenticated non-admin → redirect to their own role's landing page |
-| Teacher guard          | `(teacher)/*`                                                            | `layout.tsx` verifies session + `role: teacher` server-side; same redirect behavior                                                                                 |
-| Authenticated redirect | `(auth)/login`                                                           | If a session already exists, redirect to `/admin` or `/teacher` per role instead of showing the login form                                                          |
-| Class-scope guard      | `/teacher/attendance/[classId]`, `/teacher/marks/*`, `/teacher/students` | Route/action verifies the requested class is actually assigned to the session's teacher before returning data — not just hiding it in the UI                        |
+**Built (Sprint B1), as a two-tier split — see [DECISIONS.md § D-035](./DECISIONS.md#d-035--sprint-b1-authentication-foundation-jwt-session-strategy-corrects-d-030-empirically-confirmed-incompatible-with-credentials-only-argon2id-in-libsecurity-auth-as-its-own-service-adminteacher-route-groups-renamed-to-real-path-segments) for the full technical reasoning:**
+
+1. **`src/middleware.ts`** (Edge runtime) — a fast, coarse pre-check: `getToken()` verifies the session JWT's signature (no database access) for every non-public path; no valid token → redirect to `/login?callbackUrl=<path>`. Does **not** check role or live deactivation status — that would require a database read, which the Edge runtime cannot perform with this app's Prisma driver adapter.
+2. **`src/app/admin/layout.tsx` / `src/app/teacher/layout.tsx`** (Node.js runtime, Server Components) — the authoritative check: calls the real `auth()`, which re-resolves the user from the database on every request (`resolveActiveSessionUser()`) and attaches `accessLevel` only if the account is still active. Missing/mismatched `accessLevel` → redirect to `/unauthorized`. This is what actually enforces role scoping and instant-effect deactivation, not step 1.
+
+`(admin)`/`(teacher)` were renamed from route groups to real path segments (`src/app/admin/`, `src/app/teacher/`) this sprint specifically so `/admin/*` and `/teacher/*` are genuinely distinct URLs, matching this table's own path column below (a route group adds no URL segment, and the two would otherwise have collided on every identically-named child path, e.g. `/attendance`).
+
+| Guard                  | Applies to                                                               | Behavior                                                                                                                                                                                                                                                                |
+| ---------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Admin guard            | `/admin/*`                                                               | `layout.tsx` verifies session + `accessLevel: ADMIN` server-side; unauthenticated → redirect `/login`; authenticated non-admin → redirect `/unauthorized` (interim — see § 2's note; not yet "their own role's landing page," since no dashboard exists to redirect to) |
+| Teacher guard          | `/teacher/*`                                                             | `layout.tsx` verifies session + `accessLevel: TEACHER` server-side; same redirect behavior                                                                                                                                                                              |
+| Authenticated redirect | `(auth)/login`                                                           | **Not yet built** — deferred until `/admin`/`/teacher` have real dashboards to redirect an already-authenticated visitor to; an authenticated user can still reach `/login` today, which is a UX gap, not a security one                                                |
+| Class-scope guard      | `/teacher/attendance/[classId]`, `/teacher/marks/*`, `/teacher/students` | Not yet built — these routes don't exist yet (Epic B's Academic Operations epic); route/action must verify the requested class is actually assigned to the session's teacher before returning data, not just hide it in the UI                                          |
 
 Full rationale: [ARCHITECTURE.md § Routing Strategy](./ARCHITECTURE.md#3-routing-strategy) and [§ Security Principles](./ARCHITECTURE.md#7-security-principles).
 

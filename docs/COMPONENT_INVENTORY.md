@@ -41,23 +41,23 @@ Do not create a second component that does the same job under a different name �
 
 ## Buttons
 
-| Name          | Purpose                                                        | Props                | Reusable                              | Dependencies    | Status |
-| ------------- | -------------------------------------------------------------- | -------------------- | ------------------------------------- | --------------- | ------ |
-| `ThemeToggle` | Icon button toggling light/dark theme (sun/moon, Lucide icons) | `className?: string` | Yes (all roles — `components/shared`) | `useTheme` hook | Built  |
-
-_(Shadcn `Button` primitive itself not yet added — no composed variant needed beyond the custom pill-style CTAs in the public site so far; add it here the moment it's introduced.)_
+| Name                                  | Purpose                                                                     | Props                                    | Reusable                              | Dependencies                                        | Status |
+| ------------------------------------- | --------------------------------------------------------------------------- | ---------------------------------------- | ------------------------------------- | --------------------------------------------------- | ------ |
+| `ThemeToggle`                         | Icon button toggling light/dark theme (sun/moon, Lucide icons)              | `className?: string`                     | Yes (all roles — `components/shared`) | `useTheme` hook                                     | Built  |
+| `Button` (`components/ui/button.tsx`) | Shadcn primitive — first added Sprint B1 for the login form's submit button | `variant`, `size`, standard button props | Yes (all roles)                       | `@base-ui/react/button`, `class-variance-authority` | Built  |
 
 ## Forms
 
-| Name         | Purpose | Props | Reusable | Dependencies | Status  |
-| ------------ | ------- | ----- | -------- | ------------ | ------- |
-| _(none yet)_ |         |       |          |              | Planned |
+| Name                                | Purpose                                 | Props                | Reusable        | Dependencies           | Status |
+| ----------------------------------- | --------------------------------------- | -------------------- | --------------- | ---------------------- | ------ |
+| `Input` (`components/ui/input.tsx`) | Shadcn primitive text input — Sprint B1 | standard input props | Yes (all roles) | `@base-ui/react/input` | Built  |
+| `Label` (`components/ui/label.tsx`) | Shadcn primitive form label — Sprint B1 | standard label props | Yes (all roles) | None                   | Built  |
 
 ## Cards
 
-| Name         | Purpose | Props | Reusable | Dependencies | Status  |
-| ------------ | ------- | ----- | -------- | ------------ | ------- |
-| _(none yet)_ |         |       |          |              | Planned |
+| Name                              | Purpose                                                                                                                                                | Props              | Reusable        | Dependencies | Status |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------ | --------------- | ------------ | ------ |
+| `Card` (`components/ui/card.tsx`) | Shadcn primitive card container (`CardHeader`/`CardTitle`/`CardDescription`/`CardContent`) — first used by the login and unauthorized pages, Sprint B1 | standard div props | Yes (all roles) | None         | Built  |
 
 ## Tables
 

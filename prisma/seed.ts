@@ -509,6 +509,79 @@ async function main() {
   console.log(
     `Seeded 1 attendance session for ${attendanceClass.name}-${attendanceSection.name} on ${attendanceDate.toISOString().slice(0, 10)}, with ${attendanceEnrollments.length} attendance records.`,
   );
+
+  // Sprint B1 — Authentication Foundation. The Bootstrap Administrator: the
+  // one account that exists without ever going through Admin-driven
+  // provisioning, because no Admin exists yet to provision it — see
+  // docs/product/ADMINISTRATION_STRATEGY.md § 5. `prisma/seed.ts` is this
+  // repository's own already-established, manually-invoked bootstrap
+  // mechanism (never auto-run by `prisma migrate deploy` — only by an
+  // explicit `tsx prisma/seed.ts` call, see prisma.config.ts), satisfying
+  // this sprint's "Deployment → Seed OR dedicated deployment script" choice
+  // via the Seed path. Deliberately created via a direct repository call
+  // (createUser() + writeAuditLog(), the same shape
+  // src/services/identity/identity.service.ts's createIdentityUser() already
+  // uses) rather than by extending that Sprint-1 service's input schema to
+  // accept a password — createIdentityUser() has no password field today,
+  // and User Management (which would be the natural place to add one) is
+  // explicitly out of this sprint's scope.
+  //
+  // Reads BOOTSTRAP_ADMIN_EMAIL/PASSWORD/NAME from the environment first —
+  // the real path a future client deployment uses — falling back to an
+  // obvious, unmistakable placeholder for this repository's own dev
+  // database. **THESE FALLBACK CREDENTIALS ARE NOT, AND MUST NEVER BECOME, A
+  // PRODUCTION SECRET.** They exist only so a fresh local/dev database has a
+  // working login without anyone needing to set environment variables first.
+  // Change the password on first login, before any real data enters this
+  // system — see docs/product/GO_LIVE_CHECKLIST.md § 4.
+  const { hashPassword } = await import("../src/lib/security");
+  const { createUser: createBootstrapUser } = await import("../src/repositories/user");
+  const { db: seedDb } = await import("../src/lib/db");
+
+  const bootstrapAdminEmail = process.env.BOOTSTRAP_ADMIN_EMAIL ?? "bootstrap-admin@school.invalid";
+  const bootstrapAdminPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD ?? "ChangeMeImmediately123!";
+  const bootstrapAdminName = process.env.BOOTSTRAP_ADMIN_NAME ?? "Bootstrap Administrator";
+
+  const existingBootstrapAdmin = await findUserByEmail(bootstrapAdminEmail);
+  if (!existingBootstrapAdmin) {
+    const administratorRole = await findRoleByName("Administrator");
+    if (!administratorRole)
+      throw new Error("Expected the Administrator role to already be seeded.");
+
+    const passwordHash = await hashPassword(bootstrapAdminPassword);
+
+    await seedDb.$transaction(async (tx) => {
+      const { writeAuditLog } = await import("../src/lib/db-utils");
+
+      const user = await createBootstrapUser(
+        {
+          email: bootstrapAdminEmail,
+          name: bootstrapAdminName,
+          passwordHash,
+          school: { connect: { schoolId: school.schoolId } },
+          role: { connect: { id: administratorRole.id } },
+        },
+        tx,
+      );
+
+      await writeAuditLog(tx, {
+        schoolId: school.schoolId,
+        entityType: "User",
+        entityId: user.id,
+        actorUserId: SEED_ACTOR_USER_ID,
+        action: "CREATE",
+        afterValue: { email: user.email, roleId: administratorRole.id, bootstrap: true },
+      });
+    });
+
+    console.log(
+      process.env.BOOTSTRAP_ADMIN_EMAIL
+        ? `Seeded Bootstrap Administrator: ${bootstrapAdminEmail} (credentials from environment).`
+        : `Seeded Bootstrap Administrator with PLACEHOLDER credentials: ${bootstrapAdminEmail} / ${bootstrapAdminPassword} — CHANGE THIS PASSWORD BEFORE ANY REAL USE.`,
+    );
+  } else {
+    console.log(`Bootstrap Administrator already exists: ${bootstrapAdminEmail}.`);
+  }
 }
 
 main()

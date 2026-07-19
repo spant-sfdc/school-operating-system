@@ -93,6 +93,8 @@ Dashboards and trend visibility. **Not started, genuinely future.**
 
 ## Epic H — Platform
 
+**Superseded as of 2026-07-19 — see [D-034](./DECISIONS.md#d-034--delivery-phase-roadmap-clone-per-client-model-supersedes-eventual-saas-framing-epic-reordering).** This epic named formal multi-tenancy ("Pant Public School isolation formally lives here") as the long-run platform direction. The Delivery Phase planning sprint made the actual delivery model explicit instead: one Master Repository, cloned into an independent repository per client — no shared multi-tenant deployment, ever, as currently planned. The milestones below are retained for historical reasoning, not as a current epic — see [docs/product/EPIC_ROADMAP.md](./product/EPIC_ROADMAP.md)'s Epics B–H for the current, authoritative Delivery Phase plan, and [docs/product/FRAMEWORK_STRATEGY.md](./product/FRAMEWORK_STRATEGY.md) for what replaces the multi-tenancy direction below.
+
 The multi-tenancy work itself — where "Pant Public School isolation" formally lives. **Not started, and not to be started speculatively** — see [PRODUCT_ARCHITECTURE.md § 15](./PRODUCT_ARCHITECTURE.md#15-architecture-review--does-pant-public-school-still-appear-inside-the-architecture) and [PRODUCT_VISION.md § 7](./PRODUCT_VISION.md#7-product-philosophy).
 
 **Milestones (triggered by a real second tenant, not by a date):**
@@ -107,5 +109,7 @@ The multi-tenancy work itself — where "Pant Public School isolation" formally 
 ---
 
 ## Recommended Next Epic
+
+**Superseded as of 2026-07-19 — see [docs/product/EPIC_ROADMAP.md](./product/EPIC_ROADMAP.md)** for the current, authoritative Delivery Phase sequence (Epics B–H reordered and re-scoped now that Sprints 0–5's Foundation Phase is complete). The paragraph below predates that work and is retained for its historical reasoning only — the database has since been touched extensively (Sprints 0–5), so its "first epic that touches the database" framing no longer applies.
 
 **Epic B — Administration.** Epic A (Website Engine) is substantially complete and has proven the page-composite/configuration patterns across four real pages; the next real product value is the Admin console Pant Public School actually needs to reduce its WhatsApp/paper dependency (see [PRODUCT_VISION.md § 10](./PRODUCT_VISION.md#10-success-metrics)). It's also the first epic that touches the database, making it the right moment to apply [PRODUCT_ARCHITECTURE.md § 2](./PRODUCT_ARCHITECTURE.md#2-future-architecture)'s `schoolId`-from-day-one recommendation while it's nearly free, rather than retrofitting it later.
