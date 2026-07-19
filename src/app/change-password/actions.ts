@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 
-import { requireSession } from "@/lib/authorization";
+import { requireSession, resolvePostLoginRedirect } from "@/lib/authorization";
 import { changeOwnPassword } from "@/services/administration";
 
 export async function changePasswordAction(formData: FormData): Promise<void> {
@@ -24,5 +24,11 @@ export async function changePasswordAction(formData: FormData): Promise<void> {
     redirect(`/change-password?error=${encodeURIComponent(message)}`);
   }
 
-  redirect(session.accessLevel === "ADMIN" ? "/admin" : "/teacher");
+  // changeOwnPassword() above just cleared mustChangePassword — the same
+  // resolver the login page uses computes the role landing page here too,
+  // so the two never independently define "where does this role belong"
+  // — see D-038.
+  redirect(
+    resolvePostLoginRedirect({ accessLevel: session.accessLevel, mustChangePassword: false }),
+  );
 }

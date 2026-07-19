@@ -2,18 +2,20 @@ import { redirect } from "next/navigation";
 import { AuthError } from "next-auth";
 
 import { signIn } from "@/lib/auth";
+import { resolvePostLoginRedirect } from "@/lib/authorization";
+import { authenticateUser, InvalidCredentialsError } from "@/services/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 // Intentionally minimal — Sprint B1's own scope ("build only the minimum
-// pages required... we will redesign later"). Not wired to the "already
-// authenticated → redirect to /admin or /teacher" behavior ROUTES.md § 2
-// documents: there is no role-specific dashboard to redirect to yet ("do not
-// build dashboards yet"), so an already-authenticated user can still reach
-// this page for now. A future sprint adding real dashboards should close
-// this gap, not inherit it silently.
+// pages required... we will redesign later"). The POST-login destination is
+// now correctly role-aware (resolvePostLoginRedirect(), D-038); this page's
+// own GET handler still does not check for an already-authenticated visitor
+// and redirect them away before they see the form — a separate, still-open
+// gap (an authenticated user can still reach /login and re-submit), not
+// inherited silently, just not this fix's scope.
 export default async function LoginPage({
   searchParams,
 }: {
@@ -24,24 +26,46 @@ export default async function LoginPage({
   async function loginAction(formData: FormData) {
     "use server";
 
-    const callbackUrl = formData.get("callbackUrl");
-    const redirectTo = typeof callbackUrl === "string" && callbackUrl ? callbackUrl : "/";
+    const callbackUrlValue = formData.get("callbackUrl");
+    const callbackUrl =
+      typeof callbackUrlValue === "string" && callbackUrlValue ? callbackUrlValue : undefined;
+
+    const loginId = formData.get("loginId");
+    const password = formData.get("password");
 
     try {
+      // A pre-flight authenticateUser() call — the SAME function the
+      // Credentials provider's own authorize() calls internally
+      // (src/lib/auth/config.ts) — computes the correct destination BEFORE
+      // signIn() runs. This is necessary, not just cleaner: calling auth()
+      // immediately after signIn({redirect:false}) in this same Server
+      // Action does NOT observe the just-set session cookie in this
+      // Next.js version (confirmed by direct testing, not assumed) — see
+      // docs/DECISIONS.md's Sprint B2.1 entry (D-038) for the full trace.
+      // resolvePostLoginRedirect() is still the single place the
+      // destination is computed; this is its one call site.
+      const authenticated = await authenticateUser({
+        loginId: typeof loginId === "string" ? loginId : "",
+        password: typeof password === "string" ? password : "",
+      });
+
       await signIn("credentials", {
-        loginId: formData.get("loginId"),
-        password: formData.get("password"),
-        redirectTo,
+        loginId,
+        password,
+        redirectTo: resolvePostLoginRedirect(authenticated, callbackUrl),
       });
     } catch (error) {
-      // Auth.js's own successful-sign-in redirect is implemented by
-      // throwing internally too — only an actual AuthError means the
-      // credentials were rejected. Anything else must be re-thrown so
-      // Next.js's own redirect still completes.
-      if (error instanceof AuthError) {
+      // authenticateUser() throws InvalidCredentialsError; signIn()'s own
+      // internal authorize() call throws CredentialsSignin (an AuthError
+      // subclass) if it independently disagrees (e.g. a race between the
+      // two checks) — both are handled identically here. Auth.js's own
+      // successful-sign-in redirect is implemented by throwing internally
+      // too (NEXT_REDIRECT), so anything else must be re-thrown for
+      // Next.js's own navigation to complete.
+      if (error instanceof InvalidCredentialsError || error instanceof AuthError) {
         const retryUrl = new URL("/login", "http://placeholder");
         retryUrl.searchParams.set("error", "1");
-        if (redirectTo !== "/") retryUrl.searchParams.set("callbackUrl", redirectTo);
+        if (callbackUrl) retryUrl.searchParams.set("callbackUrl", callbackUrl);
         redirect(`${retryUrl.pathname}${retryUrl.search}`);
       }
       throw error;
