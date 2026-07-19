@@ -12,6 +12,7 @@ export interface AuthenticatedUserDTO {
   roleId: string;
   roleName: string;
   accessLevel: AccessLevel;
+  mustChangePassword: boolean;
 }
 
 export function toAuthenticatedUserDTO(user: User & { role: Role }): AuthenticatedUserDTO {
@@ -23,5 +24,6 @@ export function toAuthenticatedUserDTO(user: User & { role: Role }): Authenticat
     roleId: user.roleId,
     roleName: user.role.name,
     accessLevel: user.role.accessLevel,
+    mustChangePassword: user.mustChangePassword,
   };
 }

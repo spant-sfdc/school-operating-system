@@ -61,8 +61,17 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   │                             # a real top-level page, no auth required to view it)
 │   │   ├── admin/                  # Real path segment, not a route group — renamed from (admin)/ this sprint
 │   │   │   │                         # specifically so /admin/* is a genuine URL prefix, matching ROUTES.md — see D-035
-│   │   │   ├── layout.tsx            # Auth guard (accessLevel === "ADMIN") — Built, Sprint B1
-│   │   │   ├── page.tsx              # Guard-verification stub only, not a dashboard — Built, Sprint B1
+│   │   │   ├── layout.tsx            # Auth guard (accessLevel === "ADMIN") + mustChangePassword redirect — Sprint B1/B2
+│   │   │   ├── page.tsx              # Landing stub, links to /admin/users — Built, Sprint B1/B2
+│   │   │   ├── users/                 # Built, Sprint B2, D-036 — User Management (Admin/Teacher accounts only;
+│   │   │   │   │                        # Student/Guardian management explicitly out of scope)
+│   │   │   │   ├── page.tsx             # List — search/filter/pagination
+│   │   │   │   ├── new/page.tsx         # Create (Administrator or Teacher, branches on Role.accessLevel)
+│   │   │   │   ├── actions.ts           # Server Actions — plain <form action={fn}>, no useActionState (see D-036)
+│   │   │   │   └── [id]/
+│   │   │   │       ├── page.tsx           # Details — shows flashed temp password once after create/reset
+│   │   │   │       ├── edit/page.tsx      # Edit name/role (never own role)
+│   │   │   │       └── reset-password/page.tsx
 │   │   │   ├── students/
 │   │   │   ├── teachers/
 │   │   │   ├── attendance/
@@ -70,7 +79,7 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   │   ├── reports/
 │   │   │   └── settings/
 │   │   ├── teacher/                # Real path segment, not a route group — renamed from (teacher)/ this sprint
-│   │   │   ├── layout.tsx            # Auth guard (accessLevel === "TEACHER") — Built, Sprint B1
+│   │   │   ├── layout.tsx            # Auth guard (accessLevel === "TEACHER") + mustChangePassword redirect — Sprint B1/B2
 │   │   │   ├── page.tsx              # Guard-verification stub only, not a dashboard — Built, Sprint B1
 │   │   │   ├── dashboard/
 │   │   │   ├── attendance/
@@ -78,6 +87,10 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   │   ├── students/
 │   │   │   ├── profile/
 │   │   │   └── leave/
+│   │   ├── change-password/         # Built, Sprint B2, D-036 — top-level, any authenticated accessLevel;
+│   │   │   │                          # the only path that clears mustChangePassword
+│   │   │   ├── page.tsx
+│   │   │   └── actions.ts
 │   │   └── api/                     # Route Handlers (REST-style endpoints)
 │   │       ├── auth/                 # [...nextauth]/route.ts — Built, Sprint B1
 │   │       ├── students/
@@ -102,8 +115,14 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   │   │                              # PrismaAdapter (Account/Session/VerificationToken only — see
 │   │   │   │                              # ENGINEERING_PRINCIPLES.md § 9), session callback
 │   │   │   └── index.ts                 # export const { handlers, auth, signIn, signOut } = NextAuth(authConfig)
-│   │   ├── security/                 # Built, Sprint B1, D-035 — general security primitives, no Auth.js dependency
-│   │   │   └── password.ts              # hashPassword()/verifyPassword() — Argon2id (@node-rs/argon2)
+│   │   ├── security/                 # Built, Sprint B1/B2 — general security primitives, no Auth.js dependency
+│   │   │   └── password.ts              # hashPassword()/verifyPassword() (Argon2id) + generateTemporaryPassword()
+│   │   │                                  # (CSPRNG via node:crypto randomInt, ambiguous-character-free) — D-035/D-036
+│   │   ├── authorization/            # Built, Sprint B2, D-036 — the one canonical place a permission question is answered
+│   │   │   ├── permissions.ts           # canManageUsers()/canManageTeachers()/canResetPasswords()/canDeactivateUsers()
+│   │   │   ├── guard.ts                 # requireSession()/requirePermission() — auth() + redirect(), called once per
+│   │   │   │                              # Server Action; services trust the resulting actorUserId, never re-check
+│   │   │   └── index.ts                 # barrel
 │   │   ├── db.ts                    # Prisma client singleton — driver adapter (@prisma/adapter-pg), see D-027
 │   │   ├── db-utils.ts               # checkDatabaseHealth(), writeAuditLog() — see D-027
 │   │   ├── env.ts                   # Zod-validated environment variables — see DEVELOPMENT_CONVENTIONS.md § 10
@@ -115,7 +134,9 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   │   ├── student.ts               # Student/Guardian/Enrollment input schemas — see D-031
 │   │   │   ├── teacher.ts               # Teacher/TeacherQualification/TeacherAssignment input schemas — see D-032
 │   │   │   ├── attendance.ts           # AttendanceSession/AttendanceRecord input schemas — see D-033
-│   │   │   └── auth.ts                 # Login input schema — see D-035
+│   │   │   ├── auth.ts                 # Login input schema — see D-035
+│   │   │   └── administration.ts       # createUserAccount/editUserAccount/deactivate/activate/resetPassword/
+│   │   │                                  # changeOwnPassword/searchUsers input schemas — see D-036
 │   │   └── utils.ts                 # cn() and other shared helpers
 │   ├── config/                      # Centralized site config — see DECISIONS.md § D-018
 │   │   ├── school.ts                  # Canonical identity facts (name, location, contact, principal, etc.)
@@ -130,7 +151,8 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   ├── repositories/                # Data-access layer — see D-028/D-030/D-031/D-032 and
 │   │   │                               # docs/engineering/ENGINEERING_PRINCIPLES.md. No direct Prisma usage outside this
 │   │   │                               # folder; no repository imports another repository.
-│   │   ├── user/                      # findUserById/ByEmail, listUsersBySchool, createUser, updateUser, deactivateUser
+│   │   ├── user/                      # findUserById/ByEmail, listUsersBySchool, createUser, updateUser, deactivateUser,
+│   │   │                                 # reactivateUser, updateUserPassword, searchUsers — latter three added D-036
 │   │   ├── role/                      # findRoleById/ByName, listRoles, createRole
 │   │   ├── school/                    # findSchoolById, upsertSchool
 │   │   ├── academicYear/              # findCurrentAcademicYear, findAcademicYearByLabel, upsertAcademicYear
@@ -160,18 +182,25 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │       ├── attendance/                # openAttendanceSession(), markAttendance(), submitAttendance(),
 │       │                                 # reopenAttendance() — dto/ subfolder (attendanceSession.dto.ts,
 │       │                                 # attendanceRecord.dto.ts) — see D-033
-│       └── auth/                      # authenticateUser(), resolveActiveSessionUser() — dto/ subfolder
-│                                         # (authenticatedUser.dto.ts). No repository of its own — reuses
-│                                         # src/repositories/user/ entirely — see D-035
+│       ├── auth/                      # authenticateUser(), resolveActiveSessionUser() — dto/ subfolder
+│       │                                 # (authenticatedUser.dto.ts). No repository of its own — reuses
+│       │                                 # src/repositories/user/ entirely — see D-035
+│       └── administration/            # Built, Sprint B2, D-036 — createUserAccount(), editUserAccount(),
+│                                         # deactivateUserAccount(), activateUserAccount(), resetUserPassword(),
+│                                         # changeOwnPassword(), searchUserAccounts(), getUserAccountDetails() —
+│                                         # dto/ subfolder (userAccount.dto.ts). Orchestrates the unmodified
+│                                         # identity/teacher services rather than extending either's signature —
+│                                         # see D-036's "composition, not extension" reasoning.
 ├── prisma/
-│   ├── schema.prisma                # AuditLog, School, AcademicYear, Role, User, Account, Session, VerificationToken,
-│   │                                   # SchoolClass, Section, Subject, Student, Guardian, StudentGuardian, Enrollment,
-│   │                                   # Teacher, TeacherQualification, TeacherAssignment, AttendanceSession,
-│   │                                   # AttendanceRecord (Migrations 000-006)
+│   ├── schema.prisma                # AuditLog, School, AcademicYear, Role, User (+mustChangePassword, D-036),
+│   │                                   # Account, Session, VerificationToken, SchoolClass, Section, Subject, Student,
+│   │                                   # Guardian, StudentGuardian, Enrollment, Teacher, TeacherQualification,
+│   │                                   # TeacherAssignment, AttendanceSession, AttendanceRecord (Migrations 000-007)
 │   ├── seed.ts                       # Seeds School + AcademicYear + 3 Roles + 11 SchoolClasses (Nursery-8, sections A/B)
 │   │                                   # + 10 generic Subjects + 3 Guardians + 5 Students, enrolled + 3 Teachers with
-│   │                                   # qualifications/assignments + 1 AttendanceSession with 2 AttendanceRecords —
-│   │                                   # see D-031, D-032, D-033
+│   │                                   # qualifications/assignments + 1 AttendanceSession with 2 AttendanceRecords +
+│   │                                   # 1 Bootstrap Administrator (idempotent, DEFAULT_BOOTSTRAP_ADMIN_* constants,
+│   │                                   # mustChangePassword: true) — see D-031, D-032, D-033, D-035, D-036
 │   └── migrations/
 │       ├── 20260718000000_audit_foundation/
 │       ├── 20260718000100_school_foundation/
@@ -179,7 +208,8 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │       ├── 20260718000300_academic_foundation/
 │       ├── 20260718184429_student_foundation/
 │       ├── 20260718192844_teacher_foundation/
-│       └── 20260718201440_attendance_foundation/
+│       ├── 20260718201440_attendance_foundation/
+│       └── 20260719045852_administration_foundation/  # User.mustChangePassword — see D-036
 ├── docs/                            # This documentation set (docs/engineering/ — cross-cutting engineering rules, see D-032)
 └── public/                          # Static assets (favicon, static images)
 ```

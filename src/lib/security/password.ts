@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto";
 import { hash, verify } from "@node-rs/argon2";
 import type { Options } from "@node-rs/argon2";
 
@@ -25,4 +26,22 @@ export async function hashPassword(plain: string): Promise<string> {
 
 export async function verifyPassword(plain: string, hashedPassword: string): Promise<boolean> {
   return verify(hashedPassword, plain, ARGON2ID_OPTIONS);
+}
+
+// Excludes visually ambiguous characters (0/O, 1/l/I) — this password is
+// meant to be read off a screen by an Admin and typed or relayed by phone/
+// WhatsApp to a Teacher (docs/product/ADMINISTRATION_STRATEGY.md § 2.2),
+// not entered by the same person who generated it.
+const TEMP_PASSWORD_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+const TEMP_PASSWORD_LENGTH = 12;
+
+// Uses node:crypto's randomInt (CSPRNG-backed), not Math.random() — a
+// temporary password is a real credential, not cosmetic data, so it needs
+// the same randomness quality as any other security-relevant value.
+export function generateTemporaryPassword(): string {
+  let password = "";
+  for (let i = 0; i < TEMP_PASSWORD_LENGTH; i++) {
+    password += TEMP_PASSWORD_ALPHABET[randomInt(TEMP_PASSWORD_ALPHABET.length)];
+  }
+  return password;
 }

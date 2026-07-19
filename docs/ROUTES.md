@@ -35,26 +35,39 @@ Shared sign-in flow for Admin and Teacher.
 | `/login`        | Sign-in for Admin and Teacher     | **Built (Sprint B1):** Auth.js Credentials flow (Login ID = `User.email` + password); redirects to `callbackUrl` on success. Not yet wired to redirect an already-authenticated visitor away — see § Route Guards below for why. |
 | `/unauthorized` | Interim "wrong role" landing page | **Built (Sprint B1):** the temporary target for an authenticated session whose role doesn't match the route it tried to reach — see § Route Guards, not the final design.                                                        |
 
+### 2b. Shared Authenticated Route
+
+Requires only a valid session (any `accessLevel`) — not scoped to `/admin` or `/teacher`.
+
+| Path               | Purpose                      | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------ | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/change-password` | Self-service password change | **Built (Sprint B2):** requires current password as confirmation; the only path that clears `User.mustChangePassword`. `/admin/*` and `/teacher/*` layouts redirect here whenever `mustChangePassword` is `true`, before anything else in either surface is reachable — see [DECISIONS.md § D-036](./DECISIONS.md#d-036--sprint-b2-administration--user-management-foundation-usermustchangepassword-column-centralized-libauthorization-orchestrated-not-modified-registerteachercreateidentityuser-cookie-flashed-temporary-passwords). |
+
 ## 3. Admin Routes — `(admin)` route group
 
 Requires authenticated session with `role: admin`. See § Route Guards.
 
-| Path                       | Purpose                               | Notes                                                 |
-| -------------------------- | ------------------------------------- | ----------------------------------------------------- |
-| `/admin`                   | Admin dashboard / landing             | Summary stats                                         |
-| `/admin/students`          | Student list                          | Table, filters, pagination                            |
-| `/admin/students/new`      | Create student                        |                                                       |
-| `/admin/students/[id]`     | Student detail / edit                 | Dynamic segment                                       |
-| `/admin/teachers`          | Teacher list                          | Table, filters, pagination                            |
-| `/admin/teachers/new`      | Create teacher                        |                                                       |
-| `/admin/teachers/[id]`     | Teacher detail / edit                 | Dynamic segment                                       |
-| `/admin/attendance`        | Attendance oversight                  | Cross-class view/edit                                 |
-| `/admin/examinations`      | Examination management                | Create exams, define subjects/max marks               |
-| `/admin/examinations/[id]` | Exam detail / results entry oversight | Dynamic segment                                       |
-| `/admin/reports`           | Reports                               | Attendance & examination summaries                    |
-| `/admin/settings`          | School settings                       | Academic year, classes/sections, school profile       |
-| `/admin/content`           | Website content management            | Notices, gallery, documents (feeds the public routes) |
-| `/admin/enquiries`         | Admission enquiries inbox             | Fed by the future `/admissions/enquiry` public form   |
+| Path                               | Purpose                                | Notes                                                                                                                                                                                     |
+| ---------------------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/admin`                           | Admin dashboard / landing              | Summary stats; links to `/admin/users`                                                                                                                                                    |
+| `/admin/users`                     | User list — search, filter, pagination | **Built (Sprint B2):** Administrator/Principal/Teacher accounts (Student/Guardian management is explicitly out of this sprint's scope)                                                    |
+| `/admin/users/new`                 | Create user (Administrator or Teacher) | **Built (Sprint B2):** one form, branches server-side on the selected Role's `accessLevel`; generated temporary password shown once via a flash cookie on redirect to `/admin/users/[id]` |
+| `/admin/users/[id]`                | User details                           | **Built (Sprint B2):** shows the flashed temporary password immediately after creation/reset (`?created=1`); Edit/Reset Password/Activate/Deactivate actions                              |
+| `/admin/users/[id]/edit`           | Edit user (name, role)                 | **Built (Sprint B2):** an Admin can never change their own role, enforced server-side                                                                                                     |
+| `/admin/users/[id]/reset-password` | Admin-initiated password reset         | **Built (Sprint B2):** generates a new temporary password, sets `mustChangePassword: true`                                                                                                |
+| `/admin/students`                  | Student list                           | Table, filters, pagination                                                                                                                                                                |
+| `/admin/students/new`              | Create student                         |                                                                                                                                                                                           |
+| `/admin/students/[id]`             | Student detail / edit                  | Dynamic segment                                                                                                                                                                           |
+| `/admin/teachers`                  | Teacher list                           | Table, filters, pagination                                                                                                                                                                |
+| `/admin/teachers/new`              | Create teacher                         |                                                                                                                                                                                           |
+| `/admin/teachers/[id]`             | Teacher detail / edit                  | Dynamic segment                                                                                                                                                                           |
+| `/admin/attendance`                | Attendance oversight                   | Cross-class view/edit                                                                                                                                                                     |
+| `/admin/examinations`              | Examination management                 | Create exams, define subjects/max marks                                                                                                                                                   |
+| `/admin/examinations/[id]`         | Exam detail / results entry oversight  | Dynamic segment                                                                                                                                                                           |
+| `/admin/reports`                   | Reports                                | Attendance & examination summaries                                                                                                                                                        |
+| `/admin/settings`                  | School settings                        | Academic year, classes/sections, school profile                                                                                                                                           |
+| `/admin/content`                   | Website content management             | Notices, gallery, documents (feeds the public routes)                                                                                                                                     |
+| `/admin/enquiries`                 | Admission enquiries inbox              | Fed by the future `/admissions/enquiry` public form                                                                                                                                       |
 
 ## 4. Teacher Routes — `(teacher)` route group
 
@@ -98,6 +111,7 @@ Placeholder only — do not implement without a recorded decision per [PROJECT_G
 
 1. **`src/middleware.ts`** (Edge runtime) — a fast, coarse pre-check: `getToken()` verifies the session JWT's signature (no database access) for every non-public path; no valid token → redirect to `/login?callbackUrl=<path>`. Does **not** check role or live deactivation status — that would require a database read, which the Edge runtime cannot perform with this app's Prisma driver adapter.
 2. **`src/app/admin/layout.tsx` / `src/app/teacher/layout.tsx`** (Node.js runtime, Server Components) — the authoritative check: calls the real `auth()`, which re-resolves the user from the database on every request (`resolveActiveSessionUser()`) and attaches `accessLevel` only if the account is still active. Missing/mismatched `accessLevel` → redirect to `/unauthorized`. This is what actually enforces role scoping and instant-effect deactivation, not step 1.
+3. **Force password change (Sprint B2):** immediately after the `accessLevel` check succeeds, both layouts also check `session.user.mustChangePassword` — `true` → redirect to `/change-password`, before anything else in either surface is reachable. Not checked in `src/middleware.ts` (only a JWT signature check runs there, per D-035's Edge/Node split) — this is a second, independent gate at the same Node-runtime layer as the `accessLevel` check.
 
 `(admin)`/`(teacher)` were renamed from route groups to real path segments (`src/app/admin/`, `src/app/teacher/`) this sprint specifically so `/admin/*` and `/teacher/*` are genuinely distinct URLs, matching this table's own path column below (a route group adds no URL segment, and the two would otherwise have collided on every identically-named child path, e.g. `/attendance`).
 

@@ -13,6 +13,7 @@ declare module "next-auth" {
       roleId?: string;
       roleName?: string;
       accessLevel?: AccessLevel;
+      mustChangePassword?: boolean;
     } & DefaultSession["user"];
   }
 }

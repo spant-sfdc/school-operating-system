@@ -12,6 +12,39 @@ Nothing yet.
 
 ---
 
+## [0.24.0] — 2026-07-19 — Sprint B2: Bootstrap Administration & User Management Foundation
+
+Functional (not polished) User Management for Administrator/Teacher accounts — Create, Edit, Activate/Deactivate, Reset Password, Search/Filter, self-service password change — plus resolution of both open questions Sprint B1 left unresolved. See [D-036](./DECISIONS.md#d-036--sprint-b2-administration--user-management-foundation-usermustchangepassword-column-centralized-libauthorization-orchestrated-not-modified-registerteachercreateidentityuser-cookie-flashed-temporary-passwords). No Student/Guardian management, Attendance UI, Dashboard polish, Notifications, Forgot Password, or Email integration built.
+
+### Added
+
+- `prisma/migrations/20260719045852_administration_foundation/` — Migration 007: `User.mustChangePassword Boolean @default(false)`, purely additive.
+- `src/lib/authorization/` — `permissions.ts` (`canManageUsers()`/`canManageTeachers()`/`canResetPasswords()`/`canDeactivateUsers()`), `guard.ts` (`requireSession()`/`requirePermission()`). The one canonical place a permission question is answered app-wide.
+- `src/lib/security/password.ts` — `generateTemporaryPassword()`: a 12-character, CSPRNG-backed (`node:crypto` `randomInt`), visually-unambiguous-character-free temporary password generator.
+- `src/lib/validations/administration.ts` — input schemas for every new mutation, plus `searchUsersInputSchema`.
+- `src/services/administration/` — `createUserAccount()`, `editUserAccount()`, `deactivateUserAccount()`, `activateUserAccount()`, `resetUserPassword()`, `changeOwnPassword()`, `searchUserAccounts()`, `getUserAccountDetails()`, and a shared, unexported `applyTemporaryPassword()`. Orchestrates the unmodified Sprint 1 `createIdentityUser()`/Sprint 4 `registerTeacher()` rather than extending either.
+- `src/app/admin/users/` — `page.tsx` (list, search, filter, pagination), `new/page.tsx` (create), `[id]/page.tsx` (details — shows the flashed temporary password once after create/reset), `[id]/edit/page.tsx`, `[id]/reset-password/page.tsx`, `actions.ts` (every Server Action, plain `<form action={fn}>`, no `useActionState`).
+- `src/app/change-password/` — top-level, any authenticated `accessLevel`; the only path that clears `mustChangePassword`.
+- `docs/development/DEVELOPMENT_LOGIN.md` — Bootstrap Administrator Login ID, temporary password, rotation instructions, production warning. Resolves Sprint B1's Open Question #1.
+- `src/repositories/user/user.repository.ts` — additive: `reactivateUser()`, `updateUserPassword()`, `searchUsers()`.
+
+### Changed
+
+- `src/app/admin/layout.tsx`, `src/app/teacher/layout.tsx` — redirect to `/change-password` whenever `session.user.mustChangePassword` is `true`, before anything else in either surface is reachable.
+- `src/services/auth/dto/authenticatedUser.dto.ts`, `src/types/next-auth.d.ts`, `src/lib/auth/config.ts` — `mustChangePassword` added to the authenticated-user DTO, the session type augmentation, and the `session` callback.
+- `prisma/seed.ts` — Bootstrap Administrator credentials moved to named `DEFAULT_BOOTSTRAP_ADMIN_*` constants (used only as the env-var fallback); `mustChangePassword: true` now set explicitly on creation.
+
+### Fixed / Reversed
+
+- The two flows needing a one-time-display secret (Create User, Reset Password) were initially built as `useActionState` Client Components (`CreateUserForm`, `ResetPasswordForm`). Real end-to-end verification found that protocol unverifiable in this environment (no headless-browser tool available; `curl` simulation failed on bound Server Actions with "Missing origin header"/"Failed to find Server Action"). Rebuilt as plain Server Component forms; the temporary password is instead carried via a short-lived (60s), `httpOnly` cookie set by the Server Action immediately before redirecting to the Details page. Verified end to end for Create Teacher, Create Administrator, and Reset Password. See [D-036](./DECISIONS.md#d-036--sprint-b2-administration--user-management-foundation-usermustchangepassword-column-centralized-libauthorization-orchestrated-not-modified-registerteachercreateidentityuser-cookie-flashed-temporary-passwords).
+
+### Documentation
+
+- `docs/ROUTES.md`, `docs/ARCHITECTURE.md`, `docs/PROJECT_CONTEXT.md`, `docs/FEATURE_STATUS.md`, `docs/TASKS.md` — new routes, folder tree, sprint summary, and feature status updated.
+- `docs/DECISIONS.md` — added [D-036](./DECISIONS.md#d-036--sprint-b2-administration--user-management-foundation-usermustchangepassword-column-centralized-libauthorization-orchestrated-not-modified-registerteachercreateidentityuser-cookie-flashed-temporary-passwords), reviewed the auth implementation for hardcoded values/duplicated logic (none found requiring a fix — resolves Sprint B1's Open Question #2).
+
+---
+
 ## [0.23.0] — 2026-07-19 — Sprint B1: Authentication Foundation
 
 Auth.js Credentials authentication, Argon2id password hashing, login/logout, session management, and route protection for the still-unbuilt Admin/Teacher surfaces — the first real slice of Epic B. Corrects D-030's original "database sessions" decision to JWT after empirically confirming `@auth/core` hard-rejects database sessions with Credentials as the only provider — see [D-035](./DECISIONS.md#d-035--sprint-b1-authentication-foundation-jwt-session-strategy-corrects-d-030-empirically-confirmed-incompatible-with-credentials-only-argon2id-in-libsecurity-auth-as-its-own-service-adminteacher-route-groups-renamed-to-real-path-segments). No User Management, Dashboard, Create User UI, Reset Password, Forgot Password, Student login, or Parent login built.

@@ -19,5 +19,12 @@ export default async function TeacherLayout({ children }: { children: React.Reac
     redirect("/unauthorized");
   }
 
+  // /change-password lives outside /admin and /teacher (top-level), so this
+  // redirect can never loop back here — see src/app/change-password/page.tsx
+  // and D-036.
+  if (session.user.mustChangePassword) {
+    redirect("/change-password");
+  }
+
   return <>{children}</>;
 }

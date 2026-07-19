@@ -202,19 +202,26 @@ model Role {
 // every real User row is created through an Admin-driven flow that assigns
 // a role at creation time, never through the adapter's own auto-create path.
 model User {
-  id            String    @id @default(cuid())
-  schoolId      String    @map("school_id")
-  school        School    @relation(fields: [schoolId], references: [schoolId])
-  roleId        String    @map("role_id")
-  role          Role      @relation(fields: [roleId], references: [id])
-  name          String?
-  email         String    @unique
-  emailVerified DateTime? @map("email_verified") @db.Timestamptz(3)
-  image         String?
-  passwordHash  String?   @map("password_hash")
-  deactivatedAt DateTime? @map("deactivated_at") @db.Timestamptz(3)
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                 String    @id @default(cuid())
+  schoolId           String    @map("school_id")
+  school             School    @relation(fields: [schoolId], references: [schoolId])
+  roleId             String    @map("role_id")
+  role               Role      @relation(fields: [roleId], references: [id])
+  name               String?
+  email              String    @unique
+  emailVerified      DateTime? @map("email_verified") @db.Timestamptz(3)
+  image              String?
+  passwordHash       String?   @map("password_hash")
+  // Set whenever Admin sets a password on this user's behalf (initial
+  // provisioning or an Admin-initiated reset) — the user does not yet know
+  // whether the temp password they were given out-of-band is the one that
+  // will remain theirs. Cleared only when the user themselves successfully
+  // sets their own new password via /change-password, proving they received
+  // it — see docs/product/ADMINISTRATION_STRATEGY.md § 2.3 and D-036.
+  mustChangePassword Boolean   @default(false) @map("must_change_password")
+  deactivatedAt      DateTime? @map("deactivated_at") @db.Timestamptz(3)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   accounts Account[]
   sessions Session[]

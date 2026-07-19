@@ -61,6 +61,25 @@ const GENERIC_SUBJECT_NAMES = [
 // design), so a plain sentinel string is safe here.
 const SEED_ACTOR_USER_ID = "system-seed";
 
+// Bootstrap Administrator — the one account created without ever going
+// through Admin-driven provisioning, because no Admin exists yet to
+// provision it. See docs/product/ADMINISTRATION_STRATEGY.md § 5 and
+// docs/development/DEVELOPMENT_LOGIN.md for the full explanation and how to
+// change these credentials after first login. Named constants (Sprint B2,
+// per this sprint's own "review for hardcoded values" instruction) —
+// previously inline string literals. `.invalid` is IANA's reserved TLD for
+// addresses that must never resolve (RFC 2606) — the same "obviously fake,
+// never a real domain" discipline this project already applies to every
+// other generic seed email (@example.com in Sprint 4).
+//
+// Overridden by BOOTSTRAP_ADMIN_EMAIL/PASSWORD/NAME at deployment time for
+// a real client — see docs/product/ADMINISTRATION_STRATEGY.md § 5's
+// env-var-driven bootstrap script design. These fallback constants are
+// **never a production secret** — see DEVELOPMENT_LOGIN.md's own warning.
+const DEFAULT_BOOTSTRAP_ADMIN_EMAIL = "bootstrap-admin@school.invalid";
+const DEFAULT_BOOTSTRAP_ADMIN_PASSWORD = "ChangeMeImmediately123!";
+const DEFAULT_BOOTSTRAP_ADMIN_NAME = "Bootstrap Administrator";
+
 // Minimal generic sample data for Sprint 3 — Student Foundation. Common,
 // generic Indian names (equivalent in genericness to "John Smith"),
 // deliberately not modeled on any real person, consistent with the same
@@ -510,37 +529,37 @@ async function main() {
     `Seeded 1 attendance session for ${attendanceClass.name}-${attendanceSection.name} on ${attendanceDate.toISOString().slice(0, 10)}, with ${attendanceEnrollments.length} attendance records.`,
   );
 
-  // Sprint B1 — Authentication Foundation. The Bootstrap Administrator: the
-  // one account that exists without ever going through Admin-driven
-  // provisioning, because no Admin exists yet to provision it — see
-  // docs/product/ADMINISTRATION_STRATEGY.md § 5. `prisma/seed.ts` is this
+  // Sprint B1 — Authentication Foundation (extended, Sprint B2). The
+  // Bootstrap Administrator: the one account that exists without ever going
+  // through Admin-driven provisioning, because no Admin exists yet to
+  // provision it — see docs/product/ADMINISTRATION_STRATEGY.md § 5 and
+  // docs/development/DEVELOPMENT_LOGIN.md. `prisma/seed.ts` is this
   // repository's own already-established, manually-invoked bootstrap
   // mechanism (never auto-run by `prisma migrate deploy` — only by an
-  // explicit `tsx prisma/seed.ts` call, see prisma.config.ts), satisfying
-  // this sprint's "Deployment → Seed OR dedicated deployment script" choice
-  // via the Seed path. Deliberately created via a direct repository call
-  // (createUser() + writeAuditLog(), the same shape
-  // src/services/identity/identity.service.ts's createIdentityUser() already
-  // uses) rather than by extending that Sprint-1 service's input schema to
-  // accept a password — createIdentityUser() has no password field today,
-  // and User Management (which would be the natural place to add one) is
-  // explicitly out of this sprint's scope.
+  // explicit `tsx prisma/seed.ts` call, see prisma.config.ts). Deliberately
+  // created via a direct repository call (createUser() + writeAuditLog(),
+  // the same shape src/services/identity/identity.service.ts's
+  // createIdentityUser() already uses) rather than by extending that
+  // Sprint-1 service's input schema to accept a password —
+  // src/services/administration/ (Sprint B2) is the real home for
+  // password-setting logic now, and this one bootstrap case still doesn't
+  // need to route through it.
   //
   // Reads BOOTSTRAP_ADMIN_EMAIL/PASSWORD/NAME from the environment first —
-  // the real path a future client deployment uses — falling back to an
-  // obvious, unmistakable placeholder for this repository's own dev
-  // database. **THESE FALLBACK CREDENTIALS ARE NOT, AND MUST NEVER BECOME, A
-  // PRODUCTION SECRET.** They exist only so a fresh local/dev database has a
-  // working login without anyone needing to set environment variables first.
-  // Change the password on first login, before any real data enters this
-  // system — see docs/product/GO_LIVE_CHECKLIST.md § 4.
+  // the real path a future client deployment uses — falling back to the
+  // named DEFAULT_BOOTSTRAP_ADMIN_* constants above for this repository's
+  // own dev database. mustChangePassword is set true unconditionally: even
+  // an Admin-supplied BOOTSTRAP_ADMIN_PASSWORD should be treated as a
+  // provisioning-time value to rotate on first real use, not assumed to
+  // already be the permanent one.
   const { hashPassword } = await import("../src/lib/security");
   const { createUser: createBootstrapUser } = await import("../src/repositories/user");
   const { db: seedDb } = await import("../src/lib/db");
 
-  const bootstrapAdminEmail = process.env.BOOTSTRAP_ADMIN_EMAIL ?? "bootstrap-admin@school.invalid";
-  const bootstrapAdminPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD ?? "ChangeMeImmediately123!";
-  const bootstrapAdminName = process.env.BOOTSTRAP_ADMIN_NAME ?? "Bootstrap Administrator";
+  const bootstrapAdminEmail = process.env.BOOTSTRAP_ADMIN_EMAIL ?? DEFAULT_BOOTSTRAP_ADMIN_EMAIL;
+  const bootstrapAdminPassword =
+    process.env.BOOTSTRAP_ADMIN_PASSWORD ?? DEFAULT_BOOTSTRAP_ADMIN_PASSWORD;
+  const bootstrapAdminName = process.env.BOOTSTRAP_ADMIN_NAME ?? DEFAULT_BOOTSTRAP_ADMIN_NAME;
 
   const existingBootstrapAdmin = await findUserByEmail(bootstrapAdminEmail);
   if (!existingBootstrapAdmin) {
@@ -558,6 +577,7 @@ async function main() {
           email: bootstrapAdminEmail,
           name: bootstrapAdminName,
           passwordHash,
+          mustChangePassword: true,
           school: { connect: { schoolId: school.schoolId } },
           role: { connect: { id: administratorRole.id } },
         },
@@ -577,7 +597,7 @@ async function main() {
     console.log(
       process.env.BOOTSTRAP_ADMIN_EMAIL
         ? `Seeded Bootstrap Administrator: ${bootstrapAdminEmail} (credentials from environment).`
-        : `Seeded Bootstrap Administrator with PLACEHOLDER credentials: ${bootstrapAdminEmail} / ${bootstrapAdminPassword} — CHANGE THIS PASSWORD BEFORE ANY REAL USE.`,
+        : `Seeded Bootstrap Administrator with PLACEHOLDER credentials: ${bootstrapAdminEmail} / ${bootstrapAdminPassword} — see docs/development/DEVELOPMENT_LOGIN.md. Must change password on first login.`,
     );
   } else {
     console.log(`Bootstrap Administrator already exists: ${bootstrapAdminEmail}.`);

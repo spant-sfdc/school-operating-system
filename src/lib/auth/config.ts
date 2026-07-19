@@ -91,6 +91,7 @@ export const authConfig: NextAuthConfig = {
         session.user.roleId = resolved.roleId;
         session.user.roleName = resolved.roleName;
         session.user.accessLevel = resolved.accessLevel;
+        session.user.mustChangePassword = resolved.mustChangePassword;
       }
       return session;
     },
