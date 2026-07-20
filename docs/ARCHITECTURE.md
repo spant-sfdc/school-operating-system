@@ -255,11 +255,14 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │                                   # School extended with tagline/medium/principalName/principalTitle/
 │   │                                   # email/phone/address/schoolTimings/officeTimings/logoUrl/faviconUrl
 │   │                                   # (Migration 009, D-041) (Migrations 000-009)
-│   ├── seed.ts                       # Seeds School + AcademicYear + 3 Roles + 11 SchoolClasses (Nursery-8, sections A/B)
-│   │                                   # + 10 generic Subjects + 3 Guardians + 5 Students, enrolled + 3 Teachers with
-│   │                                   # qualifications/assignments + 1 AttendanceSession with 2 AttendanceRecords +
-│   │                                   # 1 Bootstrap Administrator (idempotent, DEFAULT_BOOTSTRAP_ADMIN_* constants,
-│   │                                   # mustChangePassword: true) — see D-031, D-032, D-033, D-035, D-036. Does not
+│   ├── seed.ts                       # Seeds School + AcademicYear + 3 Roles (always) + 1 Bootstrap Administrator
+│   │                                   # (idempotent, DEFAULT_BOOTSTRAP_ADMIN_* constants, mustChangePassword: true,
+│   │                                   # always) + 11 SchoolClasses (Nursery-8, sections A/B) + 10 generic Subjects +
+│   │                                   # 3 Guardians + 5 Students, enrolled + 3 Teachers with qualifications/assignments
+│   │                                   # + 1 AttendanceSession with 2 AttendanceRecords — this second group gated
+│   │                                   # behind SEED_DEV_FIXTURES (defaults true; set false for a real client
+│   │                                   # deployment, D-042) since it's this repository's own dev fixture data, not
+│   │                                   # reference data — see D-031, D-032, D-033, D-035, D-036, D-042. Does not
 │   │                                   # touch FrameworkConfig — that row is written only by completeSetup(),
 │   │                                   # through the Setup Wizard, never by seeding — see D-039.
 │   └── migrations/

@@ -61,6 +61,18 @@ const GENERIC_SUBJECT_NAMES = [
 // design), so a plain sentinel string is safe here.
 const SEED_ACTOR_USER_ID = "system-seed";
 
+// Reference data (Role rows, School/AcademicYear, Bootstrap Administrator)
+// always seeds — every deployment needs it. The generic Nursery-8
+// classes/sections/subjects/guardians/students/teachers/attendance below are
+// this repository's own development fixtures, not client data — per
+// docs/product/CLIENT_IMPLEMENTATION_PLAYBOOK.md § 2.1 step 5's explicit
+// "reference-data only" instruction and
+// docs/product/CLIENT_CUSTOMIZATION_GUIDE.md § 2 item 11, a real client
+// deployment's seed run must skip them. Set SEED_DEV_FIXTURES=false in that
+// deployment's environment before running this script; defaults to included
+// (true) so this repository's own dev/CI seeding is unaffected.
+const SEED_DEV_FIXTURES = process.env.SEED_DEV_FIXTURES !== "false";
+
 // Bootstrap Administrator — the one account created without ever going
 // through Admin-driven provisioning, because no Admin exists yet to
 // provision it. See docs/product/ADMINISTRATION_STRATEGY.md § 5 and
@@ -266,268 +278,289 @@ async function main() {
 
   console.log(`Seeded roles: ${roleSeeds.map((r) => r.name).join(", ")}.`);
 
-  // Sprint 2 — Academic Foundation. Classes + sections + subjects only, all
-  // generic (see the constants above) — never Pant-Public-School-specific.
-  for (let index = 0; index < GENERIC_CLASS_NAMES.length; index++) {
-    const className = GENERIC_CLASS_NAMES[index];
-    const existing = await findSchoolClassByName(school.schoolId, className);
-    if (existing) continue;
-    await createSchoolClassWithSections(
-      {
-        schoolId: school.schoolId,
-        academicYearId: academicYear.id,
-        className,
-        sortOrder: index,
-        sectionNames: GENERIC_SECTION_NAMES,
-      },
-      SEED_ACTOR_USER_ID,
-    );
-  }
-
-  console.log(
-    `Seeded ${GENERIC_CLASS_NAMES.length} classes, each with sections: ${GENERIC_SECTION_NAMES.join(", ")}.`,
-  );
-
-  for (const name of GENERIC_SUBJECT_NAMES) {
-    const existing = await findSubjectByName(school.schoolId, name);
-    if (existing) continue;
-    await createAcademicSubject({ schoolId: school.schoolId, name }, SEED_ACTOR_USER_ID);
-  }
-
-  console.log(`Seeded subjects: ${GENERIC_SUBJECT_NAMES.join(", ")}.`);
-
-  // Sprint 3 — Student Foundation. Guardians resolved (not re-created) by
-  // phone before each student, so siblings correctly share one Guardian
-  // row and re-running this script stays idempotent.
-  const { findGuardiansByPhone, createGuardian } = await import("../src/repositories/guardian");
-  const { findStudentByAdmissionNumber } = await import("../src/repositories/student");
-  const { listSectionsByClassAndYear } = await import("../src/repositories/section");
-  const { findEnrollmentByStudentAndYear } = await import("../src/repositories/enrollment");
-  const { registerStudent, enrollStudent } = await import("../src/services/student");
-
-  const guardianIdByPhone = new Map<string, string>();
-  for (const guardianSeed of GENERIC_GUARDIAN_SEEDS) {
-    const [existing] = await findGuardiansByPhone(school.schoolId, guardianSeed.phone);
-    const guardian =
-      existing ??
-      (await createGuardian({
-        firstName: guardianSeed.firstName,
-        lastName: guardianSeed.lastName,
-        phone: guardianSeed.phone,
-        school: { connect: { schoolId: school.schoolId } },
-      }));
-    guardianIdByPhone.set(guardianSeed.phone, guardian.id);
-  }
-
-  console.log(
-    `Seeded guardians: ${GENERIC_GUARDIAN_SEEDS.map((g) => `${g.firstName} ${g.lastName}`).join(", ")}.`,
-  );
-
-  for (const studentSeed of GENERIC_STUDENT_SEEDS) {
-    let student = await findStudentByAdmissionNumber(school.schoolId, studentSeed.admissionNumber);
-
-    if (!student) {
-      const guardianId = guardianIdByPhone.get(studentSeed.guardianPhone);
-      if (!guardianId) throw new Error(`No seeded guardian for phone ${studentSeed.guardianPhone}`);
-
-      const dto = await registerStudent(
-        {
-          schoolId: school.schoolId,
-          firstName: studentSeed.firstName,
-          lastName: studentSeed.lastName,
-          dateOfBirth: new Date(studentSeed.dateOfBirth),
-          admissionNumber: studentSeed.admissionNumber,
-          guardians: [
-            {
-              guardianId,
-              relationshipType: studentSeed.relationshipType,
-              isPrimaryContact: true,
-              isAuthorizedForPickup: true,
-            },
-          ],
-        },
-        SEED_ACTOR_USER_ID,
-      );
-      student = await findStudentByAdmissionNumber(school.schoolId, dto.admissionNumber);
-    }
-
-    if (!student)
-      throw new Error(`Failed to resolve seeded student ${studentSeed.admissionNumber}`);
-
-    const alreadyEnrolled = await findEnrollmentByStudentAndYear(student.id, academicYear.id);
-    if (alreadyEnrolled) continue;
-
-    const schoolClass = await findSchoolClassByName(school.schoolId, studentSeed.className);
-    if (!schoolClass) throw new Error(`Seeded class not found: ${studentSeed.className}`);
-
-    const sections = await listSectionsByClassAndYear(schoolClass.id, academicYear.id);
-    const section = sections.find((s) => s.name === studentSeed.sectionName);
-    if (!section)
-      throw new Error(
-        `Seeded section not found: ${studentSeed.className}-${studentSeed.sectionName}`,
-      );
-
-    await enrollStudent(
-      {
-        studentId: student.id,
-        academicYearId: academicYear.id,
-        sectionId: section.id,
-        rollNumber: studentSeed.rollNumber,
-      },
-      SEED_ACTOR_USER_ID,
-    );
-  }
-
-  console.log(
-    `Seeded ${GENERIC_STUDENT_SEEDS.length} students, each enrolled into ${label}'s academic structure.`,
-  );
-
-  // Sprint 4 — Teacher Foundation.
+  // Hoisted above the SEED_DEV_FIXTURES gate below — the Bootstrap
+  // Administrator block near the end of this script also needs it, and a
+  // `const` declared inside that gated block would otherwise be invisible
+  // there once the fixtures below become conditional.
   const { findUserByEmail } = await import("../src/repositories/user");
-  const { findTeacherByUserId } = await import("../src/repositories/teacher");
-  const { listAssignmentsForSection } = await import("../src/repositories/teacherAssignment");
-  const { registerTeacher, assignTeacher } = await import("../src/services/teacher");
 
-  const teacherRole = await findRoleByName("Teacher");
-  if (!teacherRole) throw new Error("Expected the Teacher role to already be seeded.");
-
-  for (const teacherSeed of GENERIC_TEACHER_SEEDS) {
-    const existingUser = await findUserByEmail(teacherSeed.email);
-    let teacher = existingUser ? await findTeacherByUserId(existingUser.id) : null;
-
-    if (!teacher) {
-      await registerTeacher(
+  if (!SEED_DEV_FIXTURES) {
+    console.log(
+      "SEED_DEV_FIXTURES=false — skipping generic classes/subjects/guardians/students/teachers/attendance (this repository's own development fixtures, not client data).",
+    );
+  } else {
+    // Sprint 2 — Academic Foundation. Classes + sections + subjects only, all
+    // generic (see the constants above) — never Pant-Public-School-specific.
+    for (let index = 0; index < GENERIC_CLASS_NAMES.length; index++) {
+      const className = GENERIC_CLASS_NAMES[index];
+      const existing = await findSchoolClassByName(school.schoolId, className);
+      if (existing) continue;
+      await createSchoolClassWithSections(
         {
           schoolId: school.schoolId,
-          roleId: teacherRole.id,
-          email: teacherSeed.email,
-          firstName: teacherSeed.firstName,
-          lastName: teacherSeed.lastName,
-          phone: teacherSeed.phone,
-          qualifications: teacherSeed.qualifications.map((q) => ({ ...q })),
+          academicYearId: academicYear.id,
+          className,
+          sortOrder: index,
+          sectionNames: GENERIC_SECTION_NAMES,
         },
         SEED_ACTOR_USER_ID,
       );
-      const newUser = await findUserByEmail(teacherSeed.email);
-      teacher = newUser ? await findTeacherByUserId(newUser.id) : null;
     }
 
-    if (!teacher) throw new Error(`Failed to resolve seeded teacher ${teacherSeed.email}`);
+    console.log(
+      `Seeded ${GENERIC_CLASS_NAMES.length} classes, each with sections: ${GENERIC_SECTION_NAMES.join(", ")}.`,
+    );
 
-    for (const assignmentSeed of teacherSeed.assignments) {
-      const schoolClass = await findSchoolClassByName(school.schoolId, assignmentSeed.className);
-      if (!schoolClass) throw new Error(`Seeded class not found: ${assignmentSeed.className}`);
+    for (const name of GENERIC_SUBJECT_NAMES) {
+      const existing = await findSubjectByName(school.schoolId, name);
+      if (existing) continue;
+      await createAcademicSubject({ schoolId: school.schoolId, name }, SEED_ACTOR_USER_ID);
+    }
 
-      const sections = await listSectionsByClassAndYear(schoolClass.id, academicYear.id);
-      const section = sections.find((s) => s.name === assignmentSeed.sectionName);
-      if (!section) {
-        throw new Error(
-          `Seeded section not found: ${assignmentSeed.className}-${assignmentSeed.sectionName}`,
+    console.log(`Seeded subjects: ${GENERIC_SUBJECT_NAMES.join(", ")}.`);
+
+    // Sprint 3 — Student Foundation. Guardians resolved (not re-created) by
+    // phone before each student, so siblings correctly share one Guardian
+    // row and re-running this script stays idempotent.
+    const { findGuardiansByPhone, createGuardian } = await import("../src/repositories/guardian");
+    const { findStudentByAdmissionNumber } = await import("../src/repositories/student");
+    const { listSectionsByClassAndYear } = await import("../src/repositories/section");
+    const { findEnrollmentByStudentAndYear } = await import("../src/repositories/enrollment");
+    const { registerStudent, enrollStudent } = await import("../src/services/student");
+
+    const guardianIdByPhone = new Map<string, string>();
+    for (const guardianSeed of GENERIC_GUARDIAN_SEEDS) {
+      const [existing] = await findGuardiansByPhone(school.schoolId, guardianSeed.phone);
+      const guardian =
+        existing ??
+        (await createGuardian({
+          firstName: guardianSeed.firstName,
+          lastName: guardianSeed.lastName,
+          phone: guardianSeed.phone,
+          school: { connect: { schoolId: school.schoolId } },
+        }));
+      guardianIdByPhone.set(guardianSeed.phone, guardian.id);
+    }
+
+    console.log(
+      `Seeded guardians: ${GENERIC_GUARDIAN_SEEDS.map((g) => `${g.firstName} ${g.lastName}`).join(", ")}.`,
+    );
+
+    for (const studentSeed of GENERIC_STUDENT_SEEDS) {
+      let student = await findStudentByAdmissionNumber(
+        school.schoolId,
+        studentSeed.admissionNumber,
+      );
+
+      if (!student) {
+        const guardianId = guardianIdByPhone.get(studentSeed.guardianPhone);
+        if (!guardianId)
+          throw new Error(`No seeded guardian for phone ${studentSeed.guardianPhone}`);
+
+        const dto = await registerStudent(
+          {
+            schoolId: school.schoolId,
+            firstName: studentSeed.firstName,
+            lastName: studentSeed.lastName,
+            dateOfBirth: new Date(studentSeed.dateOfBirth),
+            admissionNumber: studentSeed.admissionNumber,
+            guardians: [
+              {
+                guardianId,
+                relationshipType: studentSeed.relationshipType,
+                isPrimaryContact: true,
+                isAuthorizedForPickup: true,
+              },
+            ],
+          },
+          SEED_ACTOR_USER_ID,
         );
+        student = await findStudentByAdmissionNumber(school.schoolId, dto.admissionNumber);
       }
 
-      const existingSectionAssignments = await listAssignmentsForSection(
-        section.id,
-        academicYear.id,
-      );
-      const isClassTeacher = "isClassTeacher" in assignmentSeed && assignmentSeed.isClassTeacher;
-      const subjectName = "subjectName" in assignmentSeed ? assignmentSeed.subjectName : undefined;
+      if (!student)
+        throw new Error(`Failed to resolve seeded student ${studentSeed.admissionNumber}`);
 
-      const alreadyAssigned = existingSectionAssignments.some((a) =>
-        isClassTeacher
-          ? a.isClassTeacher && a.teacherId === teacher.id
-          : a.subject?.name === subjectName && a.teacherId === teacher.id,
-      );
-      if (alreadyAssigned) continue;
+      const alreadyEnrolled = await findEnrollmentByStudentAndYear(student.id, academicYear.id);
+      if (alreadyEnrolled) continue;
 
-      const subject = subjectName ? await findSubjectByName(school.schoolId, subjectName) : null;
-      if (subjectName && !subject) throw new Error(`Seeded subject not found: ${subjectName}`);
+      const schoolClass = await findSchoolClassByName(school.schoolId, studentSeed.className);
+      if (!schoolClass) throw new Error(`Seeded class not found: ${studentSeed.className}`);
 
-      await assignTeacher(
+      const sections = await listSectionsByClassAndYear(schoolClass.id, academicYear.id);
+      const section = sections.find((s) => s.name === studentSeed.sectionName);
+      if (!section)
+        throw new Error(
+          `Seeded section not found: ${studentSeed.className}-${studentSeed.sectionName}`,
+        );
+
+      await enrollStudent(
         {
-          teacherId: teacher.id,
+          studentId: student.id,
           academicYearId: academicYear.id,
           sectionId: section.id,
-          subjectId: subject?.id,
-          isClassTeacher: Boolean(isClassTeacher),
+          rollNumber: studentSeed.rollNumber,
         },
         SEED_ACTOR_USER_ID,
       );
     }
-  }
 
-  console.log(
-    `Seeded ${GENERIC_TEACHER_SEEDS.length} teachers with qualifications and assignments.`,
-  );
+    console.log(
+      `Seeded ${GENERIC_STUDENT_SEEDS.length} students, each enrolled into ${label}'s academic structure.`,
+    );
 
-  // Sprint 5 — Attendance Engine. One AttendanceSession, for Class 5-A —
-  // the section with an already-seeded Class Teacher (Priya Reddy), the
-  // realistic person to be marking her own section's daily attendance.
-  // Sprint 3 seeded exactly 5 students total, spread across 4 different
-  // sections (Class 1-A, Class 3-A, Nursery-A, Class 5-A), with at most 2
-  // students in any single section — Class 5-A's own real roster is 2
-  // students (Ananya Singh, Kabir Singh), not 5. Marking all 5 of Sprint
-  // 3's students in one session isn't possible without either violating
-  // this sprint's own "AttendanceRecord belongs to an Enrollment in the
-  // session's section" business rule, or fabricating enrollments outside
-  // this sprint's explicit Attendance-only scope — this seed marks exactly
-  // the students who are genuinely enrolled in the one session's section,
-  // consistent with every prior sprint's "generic, never fabricated" seed
-  // discipline.
-  const { listEnrollmentsBySection } = await import("../src/repositories/enrollment");
-  const { openAttendanceSession, submitAttendance } = await import("../src/services/attendance");
+    // Sprint 4 — Teacher Foundation.
+    const { findTeacherByUserId } = await import("../src/repositories/teacher");
+    const { listAssignmentsForSection } = await import("../src/repositories/teacherAssignment");
+    const { registerTeacher, assignTeacher } = await import("../src/services/teacher");
 
-  const attendanceClass = await findSchoolClassByName(school.schoolId, "Class 5");
-  if (!attendanceClass) throw new Error("Seeded class not found: Class 5");
+    const teacherRole = await findRoleByName("Teacher");
+    if (!teacherRole) throw new Error("Expected the Teacher role to already be seeded.");
 
-  const attendanceSections = await listSectionsByClassAndYear(attendanceClass.id, academicYear.id);
-  const attendanceSection = attendanceSections.find((s) => s.name === "A");
-  if (!attendanceSection) throw new Error("Seeded section not found: Class 5-A");
+    for (const teacherSeed of GENERIC_TEACHER_SEEDS) {
+      const existingUser = await findUserByEmail(teacherSeed.email);
+      let teacher = existingUser ? await findTeacherByUserId(existingUser.id) : null;
 
-  const classTeacherUser = await findUserByEmail("priya.reddy@example.com");
-  if (!classTeacherUser) {
-    throw new Error("Expected seeded teacher priya.reddy@example.com to already exist.");
-  }
+      if (!teacher) {
+        await registerTeacher(
+          {
+            schoolId: school.schoolId,
+            roleId: teacherRole.id,
+            email: teacherSeed.email,
+            firstName: teacherSeed.firstName,
+            lastName: teacherSeed.lastName,
+            phone: teacherSeed.phone,
+            qualifications: teacherSeed.qualifications.map((q) => ({ ...q })),
+          },
+          SEED_ACTOR_USER_ID,
+        );
+        const newUser = await findUserByEmail(teacherSeed.email);
+        teacher = newUser ? await findTeacherByUserId(newUser.id) : null;
+      }
 
-  const attendanceEnrollments = await listEnrollmentsBySection(
-    attendanceSection.id,
-    academicYear.id,
-  );
+      if (!teacher) throw new Error(`Failed to resolve seeded teacher ${teacherSeed.email}`);
 
-  const today = new Date();
-  const attendanceDate = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+      for (const assignmentSeed of teacherSeed.assignments) {
+        const schoolClass = await findSchoolClassByName(school.schoolId, assignmentSeed.className);
+        if (!schoolClass) throw new Error(`Seeded class not found: ${assignmentSeed.className}`);
 
-  const session = await openAttendanceSession(
-    {
-      sectionId: attendanceSection.id,
-      date: attendanceDate,
-      markedByUserId: classTeacherUser.id,
-    },
-    SEED_ACTOR_USER_ID,
-  );
+        const sections = await listSectionsByClassAndYear(schoolClass.id, academicYear.id);
+        const section = sections.find((s) => s.name === assignmentSeed.sectionName);
+        if (!section) {
+          throw new Error(
+            `Seeded section not found: ${assignmentSeed.className}-${assignmentSeed.sectionName}`,
+          );
+        }
 
-  // Roll "1" (Ananya Singh) present, roll "2" (Kabir Singh) absent — varied
-  // statuses, not a uniform all-present seed, so the data is representative.
-  const statusByRollNumber: Record<string, "PRESENT" | "ABSENT"> = {
-    "1": "PRESENT",
-    "2": "ABSENT",
-  };
+        const existingSectionAssignments = await listAssignmentsForSection(
+          section.id,
+          academicYear.id,
+        );
+        const isClassTeacher = "isClassTeacher" in assignmentSeed && assignmentSeed.isClassTeacher;
+        const subjectName =
+          "subjectName" in assignmentSeed ? assignmentSeed.subjectName : undefined;
 
-  await submitAttendance(
-    {
-      sessionId: session.id,
-      submittedByUserId: classTeacherUser.id,
-      records: attendanceEnrollments.map((enrollment) => ({
-        enrollmentId: enrollment.id,
-        status: statusByRollNumber[enrollment.rollNumber] ?? "PRESENT",
-      })),
-    },
-    SEED_ACTOR_USER_ID,
-  );
+        const alreadyAssigned = existingSectionAssignments.some((a) =>
+          isClassTeacher
+            ? a.isClassTeacher && a.teacherId === teacher.id
+            : a.subject?.name === subjectName && a.teacherId === teacher.id,
+        );
+        if (alreadyAssigned) continue;
 
-  console.log(
-    `Seeded 1 attendance session for ${attendanceClass.name}-${attendanceSection.name} on ${attendanceDate.toISOString().slice(0, 10)}, with ${attendanceEnrollments.length} attendance records.`,
-  );
+        const subject = subjectName ? await findSubjectByName(school.schoolId, subjectName) : null;
+        if (subjectName && !subject) throw new Error(`Seeded subject not found: ${subjectName}`);
+
+        await assignTeacher(
+          {
+            teacherId: teacher.id,
+            academicYearId: academicYear.id,
+            sectionId: section.id,
+            subjectId: subject?.id,
+            isClassTeacher: Boolean(isClassTeacher),
+          },
+          SEED_ACTOR_USER_ID,
+        );
+      }
+    }
+
+    console.log(
+      `Seeded ${GENERIC_TEACHER_SEEDS.length} teachers with qualifications and assignments.`,
+    );
+
+    // Sprint 5 — Attendance Engine. One AttendanceSession, for Class 5-A —
+    // the section with an already-seeded Class Teacher (Priya Reddy), the
+    // realistic person to be marking her own section's daily attendance.
+    // Sprint 3 seeded exactly 5 students total, spread across 4 different
+    // sections (Class 1-A, Class 3-A, Nursery-A, Class 5-A), with at most 2
+    // students in any single section — Class 5-A's own real roster is 2
+    // students (Ananya Singh, Kabir Singh), not 5. Marking all 5 of Sprint
+    // 3's students in one session isn't possible without either violating
+    // this sprint's own "AttendanceRecord belongs to an Enrollment in the
+    // session's section" business rule, or fabricating enrollments outside
+    // this sprint's explicit Attendance-only scope — this seed marks exactly
+    // the students who are genuinely enrolled in the one session's section,
+    // consistent with every prior sprint's "generic, never fabricated" seed
+    // discipline.
+    const { listEnrollmentsBySection } = await import("../src/repositories/enrollment");
+    const { openAttendanceSession, submitAttendance } = await import("../src/services/attendance");
+
+    const attendanceClass = await findSchoolClassByName(school.schoolId, "Class 5");
+    if (!attendanceClass) throw new Error("Seeded class not found: Class 5");
+
+    const attendanceSections = await listSectionsByClassAndYear(
+      attendanceClass.id,
+      academicYear.id,
+    );
+    const attendanceSection = attendanceSections.find((s) => s.name === "A");
+    if (!attendanceSection) throw new Error("Seeded section not found: Class 5-A");
+
+    const classTeacherUser = await findUserByEmail("priya.reddy@example.com");
+    if (!classTeacherUser) {
+      throw new Error("Expected seeded teacher priya.reddy@example.com to already exist.");
+    }
+
+    const attendanceEnrollments = await listEnrollmentsBySection(
+      attendanceSection.id,
+      academicYear.id,
+    );
+
+    const today = new Date();
+    const attendanceDate = new Date(
+      Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()),
+    );
+
+    const session = await openAttendanceSession(
+      {
+        sectionId: attendanceSection.id,
+        date: attendanceDate,
+        markedByUserId: classTeacherUser.id,
+      },
+      SEED_ACTOR_USER_ID,
+    );
+
+    // Roll "1" (Ananya Singh) present, roll "2" (Kabir Singh) absent — varied
+    // statuses, not a uniform all-present seed, so the data is representative.
+    const statusByRollNumber: Record<string, "PRESENT" | "ABSENT"> = {
+      "1": "PRESENT",
+      "2": "ABSENT",
+    };
+
+    await submitAttendance(
+      {
+        sessionId: session.id,
+        submittedByUserId: classTeacherUser.id,
+        records: attendanceEnrollments.map((enrollment) => ({
+          enrollmentId: enrollment.id,
+          status: statusByRollNumber[enrollment.rollNumber] ?? "PRESENT",
+        })),
+      },
+      SEED_ACTOR_USER_ID,
+    );
+
+    console.log(
+      `Seeded 1 attendance session for ${attendanceClass.name}-${attendanceSection.name} on ${attendanceDate.toISOString().slice(0, 10)}, with ${attendanceEnrollments.length} attendance records.`,
+    );
+  } // end if (SEED_DEV_FIXTURES)
 
   // Sprint B1 — Authentication Foundation (extended, Sprint B2). The
   // Bootstrap Administrator: the one account that exists without ever going

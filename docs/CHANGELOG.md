@@ -12,6 +12,33 @@ Nothing yet.
 
 ---
 
+## [0.28.0] — 2026-07-20 — Sprint C2: Client Onboarding Certification
+
+Certified the framework against its own stated bar — "a completely new TechPulse engineer can onboard a school without asking another engineer a single question" — via a live Business Workflow Review and dry run, not code review alone. See [D-042](./DECISIONS.md#d-042--sprint-c2-client-onboarding-certification-readmemd-quick-start-was-genuinely-onboarding-blocking-missing-migrateseedlogin-steps-prismaseedts-gains-a-seed_dev_fixtures-flag-closing-a-real-client-deployment-gap-live-dry-run-performed-against-a-temporarily-reset-deployment-state).
+
+### Fixed
+
+- `README.md` — Quick Start never mentioned `prisma migrate deploy` or `prisma/seed.ts`; Status/Roadmap described the project as still at "Milestone 4," many sprints out of date; Documentation Map never linked `docs/development/DEVELOPMENT_LOGIN.md`. All corrected — Quick Start now states the full, live-proven sequence through first login and Setup Wizard completion.
+- `prisma/seed.ts` — no mechanism existed to seed reference-data-only for a real client deployment, despite `CLIENT_IMPLEMENTATION_PLAYBOOK.md § 2.1` step 5 and `GO_LIVE_CHECKLIST.md § 2` both already requiring it. Added `SEED_DEV_FIXTURES` environment flag (defaults to included — this repository's own dev/CI seeding is unaffected); `SEED_DEV_FIXTURES=false` skips the generic classes/subjects/guardians/students/teachers/attendance fixtures while still seeding Role rows, `School`/`AcademicYear`, and the Bootstrap Administrator. Verified live, both ways.
+
+### Added
+
+- `docs/product/ONBOARDING_CERTIFICATION_CHECKLIST.md` — the reusable certification checklist, listing every onboarding step with how it was verified live and its result, for future client onboarding to be checked against.
+- `docs/product/CLIENT_CUSTOMIZATION_GUIDE.md` § 0 — the proven local/fresh deployment command sequence.
+
+### Investigated, Confirmed Not a Gap
+
+- `"seed-school"` hardcoded literal (`School.schoolId`) — confirmed via grep it appears nowhere outside `prisma/seed.ts`; not a coupling point, no client repository needs to change it.
+- No duplicate setup/configuration/readiness logic found (`checkSystemReadiness()`, `getConfigurationSummary()`, `checkMigrationsApplied()` are three distinct, non-overlapping functions).
+- The public website correctly does not reflect `/admin/configuration`'s database edits — reconfirmed live as the D-041 divergence's expected behavior, not a regression.
+
+### Verified
+
+- Live dry run against a temporarily-reset deployment state (`FrameworkConfig.setupCompleted` flipped to `false` and restored): bootstrap login → forced password change → `/admin` redirects to `/admin/setup` → wizard renders → Finalize Setup → `/admin` loads directly thereafter → Configuration/Developer Information/Administration all load → Teacher login independent of the Admin setup gate → all 8 public website routes 200 OK.
+- `pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run build` all pass clean; `prisma validate`/`migrate status` confirm schema and migrations consistent.
+
+---
+
 ## [0.27.0] — 2026-07-20 — Sprint C1: Branding & Configuration Framework
 
 The Client Configuration Framework — the foundation every future school onboarding will use. Epic B remains frozen (only reused at the repository layer, not modified). See [D-041](./DECISIONS.md#d-041--sprint-c1-client-configuration-framework-school-db-extended-as-the-admin-facing-source-of-truth-srcconfigschoolts-remains-the-separate-public-website-source-named-divergence-not-closed-this-sprint-branding-color-boundary-reaffirmed-as-deliberate).

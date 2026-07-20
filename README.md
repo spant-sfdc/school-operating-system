@@ -2,7 +2,7 @@
 
 A modern, elegant web platform for **Pant Public School**, Vidyadhar Nagar, Jaipur, Rajasthan — built to feel like Stripe Dashboard or Notion, not a traditional school ERP.
 
-> **Status:** Public Website Epic, Milestone 4 — Admissions Experience. `/about` and `/admissions` are live, both built entirely by composing the Marketing Section Library. `/admissions` is informational only — no enquiry form yet. Several fields on both pages hold bracketed placeholders pending School Admin content. Academics, the enquiry form, and other content pages/forms/auth remain unbuilt. See [docs/ROADMAP.md](./docs/ROADMAP.md) for the full delivery plan.
+> **Status:** Epic C — Client Onboarding Engine underway. The public website (7 content pages), Authentication, Administration (User Management, Setup Wizard, Audit Log), and the Client Configuration Framework (`/admin/configuration`) are all built — see [docs/PROJECT_CONTEXT.md § 2](./docs/PROJECT_CONTEXT.md#2-current-phase--sprint) for the full sprint history and [docs/FEATURE_STATUS.md](./docs/FEATURE_STATUS.md) for the per-feature dashboard. Attendance, Examinations, and Admission Management remain unbuilt.
 
 ---
 
@@ -65,7 +65,7 @@ Application code lives under `src/`. Full breakdown with files and rationale: [d
 ```
 /
 ├── src/
-│   ├── app/          # (public) (auth) (admin) (teacher) route groups + api/
+│   ├── app/          # (public)/(auth) route groups + real admin/ teacher/ path segments + api/
 │   ├── components/   # ui/ shared/ website/ admin/ teacher/
 │   ├── lib/          # utilities, motion.ts, validations/
 │   ├── hooks/        # shared custom hooks
@@ -81,26 +81,28 @@ Application code lives under `src/`. Full breakdown with files and rationale: [d
 
 This project is documentation-first, built as an operating system another AI or engineer can pick up with no chat history. `PROJECT_CONTEXT.md` is the single source of truth — read it before anything else.
 
-| Document                                                             | Purpose                                                            |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| [docs/PROJECT_CONTEXT.md](./docs/PROJECT_CONTEXT.md)                 | **Single source of truth** — read this first                       |
-| [docs/PRODUCT_REQUIREMENTS.md](./docs/PRODUCT_REQUIREMENTS.md)       | Full PRD — scope, journeys, acceptance criteria                    |
-| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)                       | System architecture, folder structure, rendering strategy          |
-| [docs/UI_DESIGN_SYSTEM.md](./docs/UI_DESIGN_SYSTEM.md)               | Design bible — color, typography, spacing, motion, accessibility   |
-| [docs/CONTENT_GUIDELINES.md](./docs/CONTENT_GUIDELINES.md)           | Voice, tone, CTA/headline/error/success copy rules                 |
-| [docs/PROJECT_GUARDRAILS.md](./docs/PROJECT_GUARDRAILS.md)           | Vision-protection rules and module approval process                |
-| [docs/DEVELOPMENT_CONVENTIONS.md](./docs/DEVELOPMENT_CONVENTIONS.md) | Naming, formatting, and code-style conventions                     |
-| [docs/COMPONENT_INVENTORY.md](./docs/COMPONENT_INVENTORY.md)         | Registry of every UI component — prevents duplicates               |
-| [docs/ROUTES.md](./docs/ROUTES.md)                                   | Complete routing map                                               |
-| [docs/FEATURE_STATUS.md](./docs/FEATURE_STATUS.md)                   | Per-feature status dashboard                                       |
-| [docs/DEFINITION_OF_DONE.md](./docs/DEFINITION_OF_DONE.md)           | Completion checklist for any unit of work                          |
-| [docs/AI_RULES.md](./docs/AI_RULES.md)                               | Behavioral rules for AI assistants working on this codebase        |
-| [docs/MASTER_PROMPT.md](./docs/MASTER_PROMPT.md)                     | Universal implementation prompt every task-specific prompt extends |
-| [docs/DECISIONS.md](./docs/DECISIONS.md)                             | Log of every approved product/architecture decision                |
-| [docs/IMPLEMENTATION_LOG.md](./docs/IMPLEMENTATION_LOG.md)           | Engineering diary — why, alternatives, lessons learned             |
-| [docs/ROADMAP.md](./docs/ROADMAP.md)                                 | Phased delivery plan, Phase 0A through Phase 5                     |
-| [docs/TASKS.md](./docs/TASKS.md)                                     | Live sprint task board                                             |
-| [docs/CHANGELOG.md](./docs/CHANGELOG.md)                             | Version history (Keep a Changelog format)                          |
+| Document                                                                         | Purpose                                                                       |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| [docs/PROJECT_CONTEXT.md](./docs/PROJECT_CONTEXT.md)                             | **Single source of truth** — read this first                                  |
+| [docs/PRODUCT_REQUIREMENTS.md](./docs/PRODUCT_REQUIREMENTS.md)                   | Full PRD — scope, journeys, acceptance criteria                               |
+| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)                                   | System architecture, folder structure, rendering strategy                     |
+| [docs/UI_DESIGN_SYSTEM.md](./docs/UI_DESIGN_SYSTEM.md)                           | Design bible — color, typography, spacing, motion, accessibility              |
+| [docs/CONTENT_GUIDELINES.md](./docs/CONTENT_GUIDELINES.md)                       | Voice, tone, CTA/headline/error/success copy rules                            |
+| [docs/PROJECT_GUARDRAILS.md](./docs/PROJECT_GUARDRAILS.md)                       | Vision-protection rules and module approval process                           |
+| [docs/DEVELOPMENT_CONVENTIONS.md](./docs/DEVELOPMENT_CONVENTIONS.md)             | Naming, formatting, and code-style conventions                                |
+| [docs/COMPONENT_INVENTORY.md](./docs/COMPONENT_INVENTORY.md)                     | Registry of every UI component — prevents duplicates                          |
+| [docs/ROUTES.md](./docs/ROUTES.md)                                               | Complete routing map                                                          |
+| [docs/FEATURE_STATUS.md](./docs/FEATURE_STATUS.md)                               | Per-feature status dashboard                                                  |
+| [docs/DEFINITION_OF_DONE.md](./docs/DEFINITION_OF_DONE.md)                       | Completion checklist for any unit of work                                     |
+| [docs/AI_RULES.md](./docs/AI_RULES.md)                                           | Behavioral rules for AI assistants working on this codebase                   |
+| [docs/MASTER_PROMPT.md](./docs/MASTER_PROMPT.md)                                 | Universal implementation prompt every task-specific prompt extends            |
+| [docs/DECISIONS.md](./docs/DECISIONS.md)                                         | Log of every approved product/architecture decision                           |
+| [docs/IMPLEMENTATION_LOG.md](./docs/IMPLEMENTATION_LOG.md)                       | Engineering diary — why, alternatives, lessons learned                        |
+| [docs/ROADMAP.md](./docs/ROADMAP.md)                                             | Phased delivery plan, Phase 0A through Phase 5                                |
+| [docs/TASKS.md](./docs/TASKS.md)                                                 | Live sprint task board                                                        |
+| [docs/CHANGELOG.md](./docs/CHANGELOG.md)                                         | Version history (Keep a Changelog format)                                     |
+| [docs/development/DEVELOPMENT_LOGIN.md](./docs/development/DEVELOPMENT_LOGIN.md) | This repository's own dev-database Bootstrap Administrator login              |
+| [docs/product/README.md](./docs/product/README.md)                               | Delivery Phase planning — Epic roadmap, client onboarding/deployment strategy |
 
 ---
 
@@ -109,36 +111,38 @@ This project is documentation-first, built as an operating system another AI or 
 ```bash
 git clone <repository-url>
 cd pant-public-school
+nvm use                              # this repo pins Node 22 — see .nvmrc
 pnpm install
-cp .env.example .env.local   # configure DATABASE_URL, DIRECT_URL, AUTH secrets, Cloudinary keys
-pnpm dev                     # http://localhost:3000
+cp .env.example .env.local           # fill in DATABASE_URL, DIRECT_URL, AUTH_SECRET (Cloudinary keys not yet consumed by any code)
+pnpm exec prisma migrate deploy      # applies all migrations (000-009) to your database
+pnpm exec tsx prisma/seed.ts         # reference data + generic dev fixtures + Bootstrap Administrator
+pnpm dev                             # http://localhost:3000
 ```
 
-Other scripts: `pnpm build`, `pnpm lint`, `pnpm typecheck`, `pnpm format` / `pnpm format:check`.
+Visit `/login` and sign in with the Bootstrap Administrator credentials the seed script just printed to the console — see [docs/development/DEVELOPMENT_LOGIN.md](./docs/development/DEVELOPMENT_LOGIN.md) for the exact values and what happens on first login (a forced password change, then the first-time Setup Wizard at `/admin/setup` before the rest of `/admin` unlocks).
 
-Two migrations exist so far (`AuditLog`; `School`/`AcademicYear` — see [docs/database/MIGRATION_PLAN.md](./docs/database/MIGRATION_PLAN.md)), but require a real PostgreSQL connection (`DATABASE_URL`/`DIRECT_URL`) to apply — `prisma migrate deploy`. Auth configuration doesn't exist yet. Prisma CLI commands currently require Node 22+ in `PATH`; see [docs/PROJECT_CONTEXT.md § Current Risks](./docs/PROJECT_CONTEXT.md#13-current-risks).
+**For a real client deployment** (not this repository's own dev database), the sequence differs — set `SEED_DEV_FIXTURES=false` and `BOOTSTRAP_ADMIN_EMAIL`/`BOOTSTRAP_ADMIN_PASSWORD`/`BOOTSTRAP_ADMIN_NAME` in that deployment's own environment before seeding, so the generic sample classes/students/teachers never reach a real client's database. Full sequence: [docs/product/CLIENT_IMPLEMENTATION_PLAYBOOK.md](./docs/product/CLIENT_IMPLEMENTATION_PLAYBOOK.md); the literal checklist of what a new client repository must change: [docs/product/CLIENT_CUSTOMIZATION_GUIDE.md](./docs/product/CLIENT_CUSTOMIZATION_GUIDE.md).
+
+Other scripts: `pnpm build`, `pnpm lint`, `pnpm typecheck`, `pnpm format` / `pnpm format:check`.
 
 ---
 
 ## Roadmap
 
-| Phase | Focus                                                   |
-| ----- | ------------------------------------------------------- |
-| 0A    | Project Foundation & Documentation                      |
-| 0A.1  | AI Development Operating System                         |
-| 0B.1  | Project Scaffolding                                     |
-| 1A    | Public Website Foundation                               |
-| 1B    | Marketing Section Library                               |
-| 1B.1  | Architecture Review & Refactoring                       |
-| 1C    | About Experience                                        |
-| M4    | Public Website Epic — Admissions Experience _(current)_ |
-| 1     | Public Website (Guest Experience)                       |
-| 2     | Authentication & Admin Foundations                      |
-| 3     | Attendance                                              |
-| 4     | Examinations & Marks                                    |
-| 5     | Teacher Experience Polish & Launch Readiness            |
+The public website (7 content pages) and the Foundation Phase (Identity, Academic, Student, Teacher, Attendance schema) are complete. Delivery now proceeds by product Epic, not phase — see [docs/product/EPIC_ROADMAP.md](./docs/product/EPIC_ROADMAP.md):
 
-Full detail: [docs/ROADMAP.md](./docs/ROADMAP.md). Live feature-by-feature status: [docs/FEATURE_STATUS.md](./docs/FEATURE_STATUS.md).
+| Epic | Focus                                             | Status                         |
+| ---- | ------------------------------------------------- | ------------------------------ |
+| A    | Public Website Engine                             | Complete                       |
+| B    | Administration (auth, users, setup, audit)        | Complete (frozen)              |
+| C    | Client Onboarding Engine                          | Underway _(current)_           |
+| D    | Data Migration Engine (Import Engine)             | Not started                    |
+| E    | Academic Operations (Attendance UI, Examinations) | Not started                    |
+| F    | Admission Management                              | Not started                    |
+| G    | Reporting & Analytics                             | Not started                    |
+| H    | Deployment & Go-Live                              | Partially designed (playbooks) |
+
+Full phase-based history (Phase 0A through the Foundation Sprints): [docs/ROADMAP.md](./docs/ROADMAP.md). Live feature-by-feature status: [docs/FEATURE_STATUS.md](./docs/FEATURE_STATUS.md). Current sprint: [docs/TASKS.md](./docs/TASKS.md).
 
 ---
 

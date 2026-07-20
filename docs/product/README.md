@@ -16,16 +16,17 @@ The Foundation Phase (Sprints 0–5 — Website Engine, Identity, Academic, Stud
 
 Read in this order:
 
-| Document                                                                 | Answers                                                                                                           |
-| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| [EPIC_ROADMAP.md](./EPIC_ROADMAP.md)                                     | The full Epic sequence for the Delivery Phase, challenged and reordered, with dependencies and readiness criteria |
-| [ADMINISTRATION_STRATEGY.md](./ADMINISTRATION_STRATEGY.md)               | User, password, and role lifecycle — provisioning, activation, reset, deactivation, bootstrap admin               |
-| [IMPORT_ENGINE_STRATEGY.md](./IMPORT_ENGINE_STRATEGY.md)                 | The reusable Data Migration Engine design, plus the Rajasthan RTE integration research findings                   |
-| [CLIENT_IMPLEMENTATION_PLAYBOOK.md](./CLIENT_IMPLEMENTATION_PLAYBOOK.md) | The corrected, step-by-step sequence for taking one new client from engagement to go-live                         |
-| [CLIENT_CUSTOMIZATION_GUIDE.md](./CLIENT_CUSTOMIZATION_GUIDE.md)         | The literal checklist for what a new client repository must change, and what should never need to                 |
-| [FRAMEWORK_STRATEGY.md](./FRAMEWORK_STRATEGY.md)                         | What belongs in the Master Repository vs. only in a client repo, and how updates actually reach a client          |
-| [VERSIONING_STRATEGY.md](./VERSIONING_STRATEGY.md)                       | How version numbers work across one Master Repository and many independent client repos                           |
-| [GO_LIVE_CHECKLIST.md](./GO_LIVE_CHECKLIST.md)                           | The broader client-deployment go-live gate — infrastructure, data, administration, training                       |
+| Document                                                                         | Answers                                                                                                           |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| [EPIC_ROADMAP.md](./EPIC_ROADMAP.md)                                             | The full Epic sequence for the Delivery Phase, challenged and reordered, with dependencies and readiness criteria |
+| [ADMINISTRATION_STRATEGY.md](./ADMINISTRATION_STRATEGY.md)                       | User, password, and role lifecycle — provisioning, activation, reset, deactivation, bootstrap admin               |
+| [IMPORT_ENGINE_STRATEGY.md](./IMPORT_ENGINE_STRATEGY.md)                         | The reusable Data Migration Engine design, plus the Rajasthan RTE integration research findings                   |
+| [CLIENT_IMPLEMENTATION_PLAYBOOK.md](./CLIENT_IMPLEMENTATION_PLAYBOOK.md)         | The corrected, step-by-step sequence for taking one new client from engagement to go-live                         |
+| [CLIENT_CUSTOMIZATION_GUIDE.md](./CLIENT_CUSTOMIZATION_GUIDE.md)                 | The literal checklist for what a new client repository must change, and what should never need to                 |
+| [FRAMEWORK_STRATEGY.md](./FRAMEWORK_STRATEGY.md)                                 | What belongs in the Master Repository vs. only in a client repo, and how updates actually reach a client          |
+| [VERSIONING_STRATEGY.md](./VERSIONING_STRATEGY.md)                               | How version numbers work across one Master Repository and many independent client repos                           |
+| [GO_LIVE_CHECKLIST.md](./GO_LIVE_CHECKLIST.md)                                   | The broader client-deployment go-live gate — infrastructure, data, administration, training                       |
+| [ONBOARDING_CERTIFICATION_CHECKLIST.md](./ONBOARDING_CERTIFICATION_CHECKLIST.md) | The narrower, earlier gate — can the framework itself be stood up and configured at all, verified live            |
 
 ## 4. Reading Basis
 
