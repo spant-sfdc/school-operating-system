@@ -17,6 +17,18 @@ export async function listUsersBySchool(schoolId: string) {
   });
 }
 
+// Batch actor-label resolution for the Audit Log Viewer (Sprint B4) — one
+// query per page of results, not one per row. AuditLog.actorUserId is a
+// plain string, not a hard FK (deliberately, so a deleted actor never
+// corrupts audit history — see Migration 000's own schema comment), so
+// this can only ever be a best-effort lookup: a caller must handle IDs
+// with no matching row (a deactivated-and-later-purged actor, or a
+// sentinel like "system-seed") falling outside the returned map.
+export async function findUsersByIds(ids: string[]) {
+  if (ids.length === 0) return [];
+  return db.user.findMany({ where: { id: { in: ids } }, include: { role: true } });
+}
+
 // "Does an Admin-tier account exist and can it actually log in" — the
 // Bootstrap/Authentication readiness signals a system-readiness check
 // needs. Deliberately checks accessLevel (Administrator or Principal both

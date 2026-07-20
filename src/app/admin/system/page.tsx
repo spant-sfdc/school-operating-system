@@ -1,5 +1,8 @@
+import Link from "next/link";
+
 import { requirePermission, canManageSystemSetup } from "@/lib/authorization";
 import { checkSystemReadiness, getFrameworkConfig } from "@/services/system";
+import { countAuditLogs } from "@/repositories/auditLog";
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
@@ -11,11 +14,12 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 export default async function DeveloperInformationPage() {
-  await requirePermission(canManageSystemSetup);
+  const session = await requirePermission(canManageSystemSetup);
 
-  const [readiness, frameworkConfig] = await Promise.all([
+  const [readiness, frameworkConfig, auditLogCount] = await Promise.all([
     checkSystemReadiness(),
     getFrameworkConfig(),
+    countAuditLogs(session.schoolId),
   ]);
 
   return (
@@ -91,6 +95,18 @@ export default async function DeveloperInformationPage() {
         ) : (
           <p className="text-muted-foreground text-sm">Setup has not been finalized yet.</p>
         )}
+      </section>
+
+      <section className="mt-8">
+        <h2 className="mb-3 text-lg font-semibold">Audit Log</h2>
+        <dl className="rounded-md border p-4">
+          <InfoRow label="Audit Log Entries" value={String(auditLogCount)} />
+        </dl>
+        <p className="mt-2 text-sm">
+          <Link href="/admin/audit" className="text-primary underline">
+            View Audit Log →
+          </Link>
+        </p>
       </section>
     </main>
   );

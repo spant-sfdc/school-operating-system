@@ -73,8 +73,11 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   │   │   │                        # reachable after completion, not gated once setup is done
 │   │   │   │   ├── page.tsx
 │   │   │   │   └── actions.ts
-│   │   │   ├── system/                # Built, Sprint B3, D-039 — Developer Information: live
-│   │   │   │   └── page.tsx             # checkSystemReadiness() + the stored FrameworkConfig snapshot
+│   │   │   ├── system/                # Built, Sprint B3, extended B4 — Developer Information: live
+│   │   │   │   └── page.tsx             # checkSystemReadiness() + FrameworkConfig snapshot + Audit Log count
+│   │   │   ├── audit/                 # Built, Sprint B4, D-040 — Audit Log Viewer, Admin-only, GET-based filters
+│   │   │   │   ├── page.tsx             # List — Date/Action/Entity Type/Actor/Search, pagination
+│   │   │   │   └── [id]/page.tsx        # Detail — Before/After Value, redacted by an exact-match denylist
 │   │   │   ├── users/                 # Built, Sprint B2, D-036 — User Management (Admin/Teacher accounts only;
 │   │   │   │   │                        # Student/Guardian management explicitly out of scope)
 │   │   │   │   ├── page.tsx             # List — search/filter/pagination
@@ -132,7 +135,8 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   │                                  # (CSPRNG via node:crypto randomInt, ambiguous-character-free) — D-035/D-036
 │   │   ├── authorization/            # Built, Sprint B2, D-036 — the one canonical place a permission question is answered
 │   │   │   ├── permissions.ts           # canManageUsers()/canManageTeachers()/canResetPasswords()/
-│   │   │   │                              # canDeactivateUsers()/canManageSystemSetup() (latter, D-039)
+│   │   │   │                              # canDeactivateUsers()/canManageSystemSetup()/canViewAuditLog()
+│   │   │   │                              # (latter two, D-039/D-040)
 │   │   │   ├── guard.ts                 # requireSession()/requirePermission() — auth() + redirect(), called once per
 │   │   │   │                              # Server Action; services trust the resulting actorUserId, never re-check
 │   │   │   ├── redirect.ts              # resolvePostLoginRedirect(), CHANGE_PASSWORD_PATH/ADMIN_HOME_PATH/
@@ -170,7 +174,8 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   │                               # docs/engineering/ENGINEERING_PRINCIPLES.md. No direct Prisma usage outside this
 │   │   │                               # folder; no repository imports another repository.
 │   │   ├── user/                      # findUserById/ByEmail, listUsersBySchool, createUser, updateUser, deactivateUser,
-│   │   │                                 # reactivateUser, updateUserPassword, searchUsers — latter three added D-036
+│   │   │                                 # reactivateUser, updateUserPassword, searchUsers, findFirstActiveAdminUser,
+│   │   │                                 # findUsersByIds — see D-036, D-039, D-040
 │   │   ├── role/                      # findRoleById/ByName, listRoles, createRole
 │   │   ├── school/                    # findSchoolById, upsertSchool, findFirstSchool, updateSchool (latter two, D-039)
 │   │   ├── academicYear/              # findCurrentAcademicYear, findAcademicYearByLabel, upsertAcademicYear,
@@ -190,8 +195,13 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   │                                 # updateAttendanceSessionEditMeta
 │   │   ├── attendanceRecord/          # findAttendanceRecordById/BySessionAndEnrollment, listAttendanceRecordsForSession,
 │   │   │                                 # upsertAttendanceRecord — see D-033
-│   │   └── frameworkConfig/           # Built, Sprint B3, D-039 — findFrameworkConfig(), createFrameworkConfig(),
-│   │                                     # updateFrameworkConfig() — a singleton row, "first row" is always correct
+│   │   ├── frameworkConfig/           # Built, Sprint B3, D-039 — findFrameworkConfig(), createFrameworkConfig(),
+│   │   │                                 # updateFrameworkConfig() — a singleton row, "first row" is always correct
+│   │   └── auditLog/                  # Built, Sprint B4, D-040 — createAuditLog() (the write, moved here from
+│   │                                     # lib/db-utils.ts's writeAuditLog(), which now just delegates — closes a
+│   │                                     # real, long-tolerated exception to "no direct Prisma outside
+│   │                                     # repositories"), findAuditLogById(), searchAuditLogs(),
+│   │                                     # listDistinctEntityTypes(), countAuditLogs()
 │   └── services/                    # Business-logic layer, composed from repositories — see D-028/D-030/D-031/D-032/D-033
 │       ├── identity/                  # createIdentityUser() — validated create + role lookup + transactional AuditLog write
 │       ├── academic/                  # createSchoolClassWithSections(), createAcademicSubject()
@@ -219,6 +229,10 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │                                         # (reuses administration's own UserAccountDTO), getFrameworkConfig(),
 │                                         # isSetupComplete(), completeSetup() — dto/ subfolder
 │                                         # (systemReadiness.dto.ts, frameworkConfig.dto.ts, schoolDetails.dto.ts)
+│       └── audit/                     # Built, Sprint B4, D-040 — searchAuditEvents() (covers both "browse
+│                                         # everything" and any filtered combination — no separate
+│                                         # listAuditEvents()), getAuditEvent(), listEntityTypeOptions() — dto/
+│                                         # subfolder (auditEvent.dto.ts, redacts by an exact-match denylist)
 ├── prisma/
 │   ├── schema.prisma                # AuditLog, School, AcademicYear, Role, User (+mustChangePassword, D-036),
 │   │                                   # Account, Session, VerificationToken, SchoolClass, Section, Subject, Student,

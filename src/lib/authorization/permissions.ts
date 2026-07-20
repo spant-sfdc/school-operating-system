@@ -33,3 +33,10 @@ export function canDeactivateUsers(subject: AuthorizationSubject): boolean {
 export function canManageSystemSetup(subject: AuthorizationSubject): boolean {
   return subject.accessLevel === "ADMIN";
 }
+
+// AuditLog is Admin-only, no exceptions — docs/database/AUDIT_STRATEGY.md
+// § 7 / docs/domain/PERMISSION_MATRIX.md § 7 ("R, Admin-only, never
+// editable by anyone").
+export function canViewAuditLog(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN";
+}

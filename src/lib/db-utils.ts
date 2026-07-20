@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
 import type { AuditAction } from "@/generated/prisma/enums";
+import { createAuditLog } from "@/repositories/auditLog";
 
 /**
  * Runs a trivial query to confirm the database is reachable. Not wired into
@@ -73,7 +74,15 @@ interface WriteAuditLogInput {
  * the mutation itself — pass the transaction client (`tx` from
  * `db.$transaction(async (tx) => ...)`), not the top-level `db` singleton,
  * once a real mutation exists to call this from.
+ *
+ * Delegates to src/repositories/auditLog/'s createAuditLog() — this
+ * function's own signature is deliberately unchanged (Sprint B4) so every
+ * existing call site across every service needed zero changes; only the
+ * internal Prisma access moved into the repository layer, closing a real,
+ * long-tolerated exception to "no direct Prisma outside repositories" that
+ * predated this model having a repository at all. See docs/DECISIONS.md's
+ * Sprint B4 entry.
  */
 export async function writeAuditLog(tx: Prisma.TransactionClient, input: WriteAuditLogInput) {
-  return tx.auditLog.create({ data: input });
+  return createAuditLog(input, tx);
 }

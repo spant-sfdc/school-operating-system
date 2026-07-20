@@ -12,6 +12,39 @@ Nothing yet.
 
 ---
 
+## [0.26.0] — 2026-07-20 — Sprint B4: Audit Log Viewer & Administration Freeze
+
+The Audit Log Viewer — the last item in Epic B's own Full slice — plus an Administration Architecture Review, a Bootstrap Administrator review, and a Security Review. **Epic B (Administration) is now declared complete.** See [D-040](./DECISIONS.md#d-040--sprint-b4-audit-log-viewer--administration-freeze-writeauditlog-now-delegates-to-a-real-repository-closing-a-sprint-0-era-exception-exact-match-redaction-denylist-replaces-a-substring-match-that-redacted-its-own-safe-audit-flags-epic-b-declared-complete).
+
+### Added
+
+- `src/repositories/auditLog/` — `createAuditLog()` (the write side, moved from `lib/db-utils.ts`), `findAuditLogById()`, `searchAuditLogs()`, `listDistinctEntityTypes()`, `countAuditLogs()`.
+- `src/services/audit/` — `searchAuditEvents()`, `getAuditEvent()`, `listEntityTypeOptions()`. Redacts `beforeValue`/`afterValue` by an exact-match key denylist before any DTO leaves the service.
+- `src/app/admin/audit/` — the Audit Log Viewer: list (Date/Action/Entity Type/Actor/Search filters, GET-based, pagination) and detail (Before/After Value) pages. Administrator-only.
+- `src/repositories/user/user.repository.ts` — additive `findUsersByIds()`, for batch actor-label resolution (one query per page, not one per row).
+- `src/lib/authorization/permissions.ts` — additive `canViewAuditLog()`.
+
+### Fixed
+
+- `src/lib/db-utils.ts`'s `writeAuditLog()` called Prisma directly since Sprint 0 — a real, long-tolerated exception to "no direct Prisma outside repositories" that predated this model having a repository at all. Now delegates to `createAuditLog()`; the function's own external signature is unchanged, so none of its ~27 existing call sites needed edits.
+- A redaction bug found during this sprint's own verification, not shipped: the first implementation used a substring match (`/password|hash|secret|token|session/i`) that also redacted the _values_ of the safe `passwordReset`/`mustChangePassword`/`passwordChangedBySelf` audit flags this codebase deliberately logs instead of a real secret. Replaced with an exact-match denylist; re-verified correct against a live audit entry.
+
+### Changed
+
+- `src/app/admin/page.tsx` — added an "Audit Log" Quick Action.
+- `src/app/admin/system/page.tsx` — added an Audit Log Entries count with a link to the full viewer.
+
+### Documentation
+
+- `docs/DECISIONS.md` — added D-040, including the required pre-implementation Administration Architecture Review, Bootstrap Administrator review (no inconsistency found), Security Review, and Framework Health Review (two small, low-priority duplications noted, neither fixed — would mean touching completed modules for no functional gain).
+- `docs/ROUTES.md`, `docs/ARCHITECTURE.md`, `docs/PROJECT_CONTEXT.md`, `docs/FEATURE_STATUS.md`, `docs/TASKS.md` updated.
+
+### Verified
+
+End to end against a live, freshly built production server: bootstrap login → forced password change → `/admin` renders Admin Home with the new Audit Log Quick Action (setup already finalized in Sprint B3, no Wizard detour) → `/admin/audit` shows real audit history (121 entries) with correctly populated Entity Type/Actor filter options → Action/Entity Type/Actor/Search filters and pagination all verified individually → detail page shows Before/After Value with `passwordReset: true` rendering correctly (not redacted) after the denylist fix → a live Edit User action increases the total count and appears at the top of the list → a Teacher session hitting `/admin/audit` is redirected to `/unauthorized` (307) before the page-level permission check even runs → `/admin/setup` and `/admin/users` regression-checked unaffected.
+
+---
+
 ## [0.25.0] — 2026-07-20 — Sprint B3: First-Time Setup Wizard & System Readiness
 
 A production-readiness gate for this platform's clone-per-client delivery model: a Setup Wizard every cloned deployment passes through before its Admin surface is usable, and one reusable `checkSystemReadiness()` service. See [D-039](./DECISIONS.md#d-039--sprint-b3-first-time-setup-wizard--system-readiness-frameworkconfig-as-a-write-once-snapshot-not-a-live-cache-one-checksystemreadiness-service-reused-by-three-consumers-middleware-x-pathname-header-for-a-server-component-loop-safe-redirect). No charts, analytics, Attendance/Student/Teacher UI, or Import Engine built.
