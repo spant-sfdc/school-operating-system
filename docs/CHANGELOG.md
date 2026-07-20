@@ -12,6 +12,29 @@ Nothing yet.
 
 ---
 
+## [0.32.0] — 2026-07-21 — Sprint D4: Import Engine Freeze & Architecture Certification
+
+A certification sprint, not a feature sprint — 16 mandatory architecture questions answered against real code, not assumption. One genuine gap found and fixed; two narrower constraints found live and named. See [D-046](./DECISIONS.md#d-046--sprint-d4-import-engine-freeze--architecture-certification-16-question-certification-against-real-code-not-assumed-one-genuine-gap-found-and-fixed-studentteacherattendanceservicets-gain-the-same-tx-passthrough-d2-gave-academicservicets-verified-live-with-a-real-rollback-test-two-narrower-composability-constraints-named-but-deliberately-not-fixed-epic-ds-core-engine-declared-frozen).
+
+### Fixed
+
+- `src/services/student/student.service.ts` (`registerStudent()`, `enrollStudent()`), `src/services/teacher/teacher.service.ts` (`registerTeacher()`, `deactivateTeacher()`) gained an optional `tx?: Prisma.TransactionClient` parameter — the same passthrough pattern D2 already gave `academic.service.ts`, closing the gap D-044 explicitly predicted would exist here.
+- `src/services/teacher/teacher.service.ts` (`assignTeacher()`, `updateTeacherAssignment()`), `src/services/attendance/attendance.service.ts` (`openAttendanceSession()`, `markAttendance()`, `submitAttendance()`) gained the same `tx` passthrough, plus a deeper fix: each previously read its own just-written row back via a _separate, post-commit_ call (`findTeacherAssignmentById()`/`findAttendanceSessionById()`/`findAttendanceRecordById()`); all three now read via the _same, still-open_ transaction instead. `src/repositories/{teacherAssignment,attendanceSession,attendanceRecord}/`'s three `findXById()` functions gained an optional `tx` parameter (defaulting to `db`) to support this — every existing call site is unaffected.
+
+### Found, Named, Not Fixed
+
+- `assignTeacher()`'s and `markAttendance()`'s own pre-transaction existence checks (`findTeacherById()`, `findAttendanceSessionById()`) still read via the plain `db` singleton — confirmed live to fail with a confusing "not found" if a future commit handler tried to create-and-assign/create-and-mark within one single transaction. A correctly-shaped importer avoids this (create and assign/mark as separate rows, mirroring Academic Structure's own precedent) — confirmed live to work.
+- Those same pre-checks, even in the working scenario above, reproduce the exact `pg`-driver "client already executing a query" connection-contention warning D-031 already named a real reliability risk — confirmed live, not fixed (touches repository read functions shared far beyond these two services).
+- No `Examination`/`MarksRecord`/`Admission*` schema exists yet (confirmed via `grep -c "^model.*Marks\|^model.*Exam"`/`"^model.*Admission"` against `prisma/schema.prisma`) — Results/Admission Import readiness is a data-model gap belonging to Epic E/F, not this engine.
+
+### Verified
+
+- Live scratch script (self-cleaning, no fixtures left behind): `registerStudent()` called with an externally-provided, intentionally-rolled-back transaction — confirmed the student did not persist, proving the write genuinely composed into the caller's own transaction. `registerTeacher()` + `assignTeacher()` composed into one still-open transaction — confirmed the read-via-tx fix correctly sees the not-yet-committed teacher. Identical shape confirmed for `openAttendanceSession()` + `markAttendance()`.
+- `pnpm exec tsc --noEmit`, `pnpm run lint`, `pnpm run format:check`, `pnpm run build`, `pnpm exec prisma validate` all pass clean.
+- Repository/Service/DTO/Audit/Import boundary greps: zero repository-imports-repository violations, zero direct-Prisma-outside-repository usage in `src/services/import/`, all four `/admin/imports/*` pages confirmed to call `requirePermission(canManageImports)`.
+
+---
+
 ## [0.31.0] — 2026-07-21 — Sprint D3: Upload, Detection & Smart Mapping
 
 The standard Upload/Detect/Map experience every future importer reuses — `/admin/imports/upload`, `/admin/imports/mapping`, `/admin/imports/preview`. See [D-045](./DECISIONS.md#d-045--sprint-d3-upload-detection--smart-mapping-two-new-dependencies-papaparseexceljs-import-profiles-formalize-d2s-ad-hoc-aliases-into-a-reusable-registry-a-live-found-next_redirect-swallowed-by-trycatch-bug-fixed-in-the-mapping-action).

@@ -10,8 +10,12 @@ const SESSION_INCLUDE = {
   records: { include: { enrollment: { include: { student: true } } } },
 } satisfies Prisma.AttendanceSessionInclude;
 
-export async function findAttendanceSessionById(id: string) {
-  return db.attendanceSession.findUnique({ where: { id }, include: SESSION_INCLUDE });
+// Optional `tx` — a plain findUnique()+include is a single, non-decomposed
+// query (unlike createAttendanceSession()'s create()+include, see its own
+// comment), so it's safe to call from inside the still-open transaction
+// that just created/updated the row, via that same `tx`.
+export async function findAttendanceSessionById(id: string, tx: Prisma.TransactionClient = db) {
+  return tx.attendanceSession.findUnique({ where: { id }, include: SESSION_INCLUDE });
 }
 
 // "Has today's session already been marked" — the unique-index-backed
@@ -28,7 +32,8 @@ export async function findAttendanceSessionBySectionAndDate(sectionId: string, d
 // src/repositories/teacherAssignment/teacherAssignment.repository.ts's
 // createTeacherAssignment(), avoiding Prisma's create()+include
 // decomposition inside an open transaction. Callers read back via
-// findAttendanceSessionById() after the transaction commits.
+// findAttendanceSessionById(id, tx) — same tx, still inside the
+// transaction — for the full relational shape.
 export async function createAttendanceSession(
   input: Prisma.AttendanceSessionCreateInput,
   tx: Prisma.TransactionClient = db,

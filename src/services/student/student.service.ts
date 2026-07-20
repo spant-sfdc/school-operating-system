@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { writeAuditLog } from "@/lib/db-utils";
-import type { Guardian } from "@/generated/prisma/client";
+import type { Guardian, Prisma } from "@/generated/prisma/client";
 import type { RelationshipType } from "@/generated/prisma/enums";
 import {
   createStudent,
@@ -32,10 +32,17 @@ import { toEnrollmentDTO, type EnrollmentDTO } from "@/services/student/enrollme
  *
  * Not called by any route or UI yet — this sprint is data/infrastructure
  * only.
+ *
+ * Optional `tx` — same passthrough pattern as
+ * src/services/academic/academic.service.ts's createSchoolClassWithSections()
+ * (see docs/DECISIONS.md's Sprint D2 entry), so a future Student Importer's
+ * commit handler can compose this into its own per-row transaction rather
+ * than opening a second, independent one.
  */
 export async function registerStudent(
   input: RegisterStudentInput,
   actorUserId: string,
+  tx?: Prisma.TransactionClient,
 ): Promise<StudentDTO> {
   const validated = registerStudentInputSchema.parse(input);
 
@@ -65,7 +72,7 @@ export async function registerStudent(
     resolvedExistingGuardians.set(link.guardianId, await requireExistingGuardian(link.guardianId));
   }
 
-  return db.$transaction(async (tx) => {
+  const run = async (t: Prisma.TransactionClient) => {
     const student = await createStudent(
       {
         firstName: validated.firstName,
@@ -78,10 +85,10 @@ export async function registerStudent(
         category: validated.category,
         school: { connect: { schoolId: validated.schoolId } },
       },
-      tx,
+      t,
     );
 
-    await writeAuditLog(tx, {
+    await writeAuditLog(t, {
       schoolId: validated.schoolId,
       entityType: "Student",
       entityId: student.id,
@@ -105,7 +112,7 @@ export async function registerStudent(
               ...link.newGuardian!,
               school: { connect: { schoolId: validated.schoolId } },
             },
-            tx,
+            t,
           );
 
       await linkGuardianToStudent(
@@ -116,10 +123,10 @@ export async function registerStudent(
           isPrimaryContact: link.isPrimaryContact,
           isAuthorizedForPickup: link.isAuthorizedForPickup,
         },
-        tx,
+        t,
       );
 
-      await writeAuditLog(tx, {
+      await writeAuditLog(t, {
         schoolId: validated.schoolId,
         entityType: "StudentGuardian",
         entityId: `${student.id}:${guardian.id}`,
@@ -137,7 +144,9 @@ export async function registerStudent(
     }
 
     return toStudentDTO(student, resolvedLinks);
-  });
+  };
+
+  return tx ? run(tx) : db.$transaction(run);
 }
 
 async function requireExistingGuardian(guardianId: string) {
@@ -155,10 +164,13 @@ async function requireExistingGuardian(guardianId: string) {
  * sectionId, rollNumber). Reusable for a student's first enrollment and for
  * every subsequent year's re-enrollment — enrolling a returning student
  * never re-registers them.
+ *
+ * Optional `tx`, same passthrough pattern as registerStudent() above.
  */
 export async function enrollStudent(
   input: EnrollStudentInput,
   actorUserId: string,
+  tx?: Prisma.TransactionClient,
 ): Promise<EnrollmentDTO> {
   const validated = enrollStudentInputSchema.parse(input);
 
@@ -177,7 +189,7 @@ export async function enrollStudent(
     );
   }
 
-  return db.$transaction(async (tx) => {
+  const run = async (t: Prisma.TransactionClient) => {
     const enrollment = await createEnrollment(
       {
         student: { connect: { id: validated.studentId } },
@@ -186,10 +198,10 @@ export async function enrollStudent(
         rollNumber: validated.rollNumber,
         school: { connect: { schoolId: student.schoolId } },
       },
-      tx,
+      t,
     );
 
-    await writeAuditLog(tx, {
+    await writeAuditLog(t, {
       schoolId: student.schoolId,
       entityType: "Enrollment",
       entityId: enrollment.id,
@@ -204,5 +216,7 @@ export async function enrollStudent(
     });
 
     return toEnrollmentDTO(enrollment);
-  });
+  };
+
+  return tx ? run(tx) : db.$transaction(run);
 }

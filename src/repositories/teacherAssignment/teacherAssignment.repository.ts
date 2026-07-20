@@ -13,8 +13,13 @@ const ASSIGNMENT_INCLUDE = {
   subject: true,
 } satisfies Prisma.TeacherAssignmentInclude;
 
-export async function findTeacherAssignmentById(id: string) {
-  return db.teacherAssignment.findUnique({ where: { id }, include: ASSIGNMENT_INCLUDE });
+// Optional `tx`, same passthrough pattern as every write below — unlike
+// createTeacherAssignment()'s create()+include restriction (see its own
+// comment), a plain findUnique()+include is a single, non-decomposed query,
+// so it's safe to call from *inside* the still-open transaction that just
+// created the row, via that same `tx` — no need to wait for commit.
+export async function findTeacherAssignmentById(id: string, tx: Prisma.TransactionClient = db) {
+  return tx.teacherAssignment.findUnique({ where: { id }, include: ASSIGNMENT_INCLUDE });
 }
 
 // The "is this section already assigned this subject this year" duplicate
@@ -64,8 +69,9 @@ export async function listAssignmentsForSection(sectionId: string, academicYearI
 // project's own already-shipped src/repositories/enrollment/ code too, not
 // something Sprint 4 introduced — see docs/DECISIONS.md's Sprint 4 entry).
 // Callers needing the full relational shape should call
-// findTeacherAssignmentById() as a separate, standalone read after the
-// transaction that created the row has committed.
+// findTeacherAssignmentById(id, tx) — same tx, still inside the
+// transaction — as a separate, single-query read; that read is NOT a
+// create()+include and does not decompose, so it's safe there.
 export async function createTeacherAssignment(
   input: Prisma.TeacherAssignmentCreateInput,
   tx: Prisma.TransactionClient = db,

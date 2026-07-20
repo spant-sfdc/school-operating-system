@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import type { Prisma } from "@/generated/prisma/client";
 import { writeAuditLog } from "@/lib/db-utils";
 import type { AttendanceStatus } from "@/generated/prisma/enums";
 import { findUserById } from "@/repositories/user";
@@ -41,10 +42,19 @@ import {
  * Idempotent: calling this twice for the same (sectionId, date) returns the
  * existing session rather than throwing — "today's session is already
  * open" is a valid, expected state, not an error.
+ *
+ * Optional `tx` — same passthrough pattern as
+ * src/services/academic/academic.service.ts's createSchoolClassWithSections()
+ * (see docs/DECISIONS.md's Sprint D2 entry). The post-create read-back
+ * happens via findAttendanceSessionById(id, t) — the same transaction, not
+ * a separate post-commit call — since that read is a single
+ * findUnique()+include, not a create()+include, and so doesn't hit the
+ * decomposition issue createAttendanceSession()'s own comment describes.
  */
 export async function openAttendanceSession(
   input: OpenAttendanceSessionInput,
   actorUserId: string,
+  tx?: Prisma.TransactionClient,
 ): Promise<AttendanceSessionDTO> {
   const validated = openAttendanceSessionInputSchema.parse(input);
 
@@ -67,7 +77,7 @@ export async function openAttendanceSession(
     return toAttendanceSessionDTO(existing);
   }
 
-  const sessionId = await db.$transaction(async (tx) => {
+  const run = async (t: Prisma.TransactionClient) => {
     const session = await createAttendanceSession(
       {
         school: { connect: { schoolId: schoolClass.schoolId } },
@@ -75,10 +85,10 @@ export async function openAttendanceSession(
         date: validated.date,
         markedByUserId: validated.markedByUserId,
       },
-      tx,
+      t,
     );
 
-    await writeAuditLog(tx, {
+    await writeAuditLog(t, {
       schoolId: schoolClass.schoolId,
       entityType: "AttendanceSession",
       entityId: session.id,
@@ -87,16 +97,14 @@ export async function openAttendanceSession(
       afterValue: { sectionId: validated.sectionId, date: validated.date.toISOString() },
     });
 
-    return session.id;
-  });
+    const created = await findAttendanceSessionById(session.id, t);
+    if (!created) {
+      throw new Error(`Failed to load newly-created attendance session: ${session.id}`);
+    }
+    return toAttendanceSessionDTO(created);
+  };
 
-  // A standalone read, after the transaction has committed — see
-  // createAttendanceSession()'s own comment for why.
-  const created = await findAttendanceSessionById(sessionId);
-  if (!created) {
-    throw new Error(`Failed to load newly-created attendance session: ${sessionId}`);
-  }
-  return toAttendanceSessionDTO(created);
+  return tx ? run(tx) : db.$transaction(run);
 }
 
 /**
@@ -106,10 +114,13 @@ export async function openAttendanceSession(
  * "Attendance belongs to Enrollment" (docs/domain/BUSINESS_RULES.md § 4) by
  * checking the enrollment's sectionId matches the session's, not just that
  * the enrollment exists at all.
+ *
+ * Optional `tx`, same passthrough pattern as openAttendanceSession() above.
  */
 export async function markAttendance(
   input: MarkAttendanceInput,
   actorUserId: string,
+  tx?: Prisma.TransactionClient,
 ): Promise<AttendanceRecordDTO> {
   const validated = markAttendanceInputSchema.parse(input);
 
@@ -138,7 +149,7 @@ export async function markAttendance(
     validated.enrollmentId,
   );
 
-  const recordId = await db.$transaction(async (tx) => {
+  const run = async (t: Prisma.TransactionClient) => {
     // Upsert, not create — docs/database/TRANSACTION_BOUNDARIES.md § 5's own
     // "prevent duplicate attendance" guidance: the (sessionId, enrollmentId)
     // unique constraint is the real guard, not this pre-check.
@@ -146,10 +157,10 @@ export async function markAttendance(
       validated.sessionId,
       validated.enrollmentId,
       validated.status,
-      tx,
+      t,
     );
 
-    await writeAuditLog(tx, {
+    await writeAuditLog(t, {
       schoolId: session.schoolId,
       entityType: "AttendanceRecord",
       entityId: record.id,
@@ -159,16 +170,16 @@ export async function markAttendance(
       afterValue: { status: validated.status },
     });
 
-    await updateAttendanceSessionEditMeta(validated.sessionId, validated.markedByUserId, tx);
+    await updateAttendanceSessionEditMeta(validated.sessionId, validated.markedByUserId, t);
 
-    return record.id;
-  });
+    const created = await findAttendanceRecordById(record.id, t);
+    if (!created) {
+      throw new Error(`Failed to load newly-upserted attendance record: ${record.id}`);
+    }
+    return toAttendanceRecordDTO(created);
+  };
 
-  const created = await findAttendanceRecordById(recordId);
-  if (!created) {
-    throw new Error(`Failed to load newly-upserted attendance record: ${recordId}`);
-  }
-  return toAttendanceRecordDTO(created);
+  return tx ? run(tx) : db.$transaction(run);
 }
 
 /**
@@ -180,10 +191,13 @@ export async function markAttendance(
  * Enforces "Teacher/User must exist before attendance is submitted" and
  * "Attendance belongs to Enrollment" the same way markAttendance() does,
  * for every record in the batch.
+ *
+ * Optional `tx`, same passthrough pattern as openAttendanceSession() above.
  */
 export async function submitAttendance(
   input: SubmitAttendanceInput,
   actorUserId: string,
+  tx?: Prisma.TransactionClient,
 ): Promise<AttendanceSessionDTO> {
   const validated = submitAttendanceInputSchema.parse(input);
 
@@ -225,16 +239,16 @@ export async function submitAttendance(
     });
   }
 
-  await db.$transaction(async (tx) => {
+  const run = async (t: Prisma.TransactionClient) => {
     for (const record of resolved) {
       const written = await upsertAttendanceRecord(
         validated.sessionId,
         record.enrollmentId,
         record.status,
-        tx,
+        t,
       );
 
-      await writeAuditLog(tx, {
+      await writeAuditLog(t, {
         schoolId: session.schoolId,
         entityType: "AttendanceRecord",
         entityId: written.id,
@@ -248,10 +262,10 @@ export async function submitAttendance(
     const updatedSession = await updateAttendanceSessionEditMeta(
       validated.sessionId,
       validated.submittedByUserId,
-      tx,
+      t,
     );
 
-    await writeAuditLog(tx, {
+    await writeAuditLog(t, {
       schoolId: session.schoolId,
       entityType: "AttendanceSession",
       entityId: updatedSession.id,
@@ -262,15 +276,15 @@ export async function submitAttendance(
         recordCount: resolved.length,
       },
     });
-  });
 
-  // A standalone read, after the transaction has committed — see
-  // createAttendanceSession()'s own comment for why.
-  const updated = await findAttendanceSessionById(validated.sessionId);
-  if (!updated) {
-    throw new Error(`Failed to load attendance session after submission: ${validated.sessionId}`);
-  }
-  return toAttendanceSessionDTO(updated);
+    const updated = await findAttendanceSessionById(validated.sessionId, t);
+    if (!updated) {
+      throw new Error(`Failed to load attendance session after submission: ${validated.sessionId}`);
+    }
+    return toAttendanceSessionDTO(updated);
+  };
+
+  return tx ? run(tx) : db.$transaction(run);
 }
 
 /**

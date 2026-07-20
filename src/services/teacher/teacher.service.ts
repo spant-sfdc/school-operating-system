@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import type { Prisma } from "@/generated/prisma/client";
 import { writeAuditLog } from "@/lib/db-utils";
 import { createUser, findUserByEmail } from "@/repositories/user";
 import { createTeacher, findTeacherById, updateTeacherStatus } from "@/repositories/teacher";
@@ -39,10 +40,15 @@ import {
  *
  * Not called by any route or UI yet — this sprint is data/infrastructure
  * only.
+ *
+ * Optional `tx` — same passthrough pattern as
+ * src/services/academic/academic.service.ts's createSchoolClassWithSections()
+ * (see docs/DECISIONS.md's Sprint D2 entry).
  */
 export async function registerTeacher(
   input: RegisterTeacherInput,
   actorUserId: string,
+  tx?: Prisma.TransactionClient,
 ): Promise<TeacherDTO> {
   const validated = registerTeacherInputSchema.parse(input);
 
@@ -51,7 +57,7 @@ export async function registerTeacher(
     throw new Error(`A user with email "${validated.email}" already exists.`);
   }
 
-  return db.$transaction(async (tx) => {
+  const run = async (t: Prisma.TransactionClient) => {
     const user = await createUser(
       {
         email: validated.email,
@@ -59,10 +65,10 @@ export async function registerTeacher(
         school: { connect: { schoolId: validated.schoolId } },
         role: { connect: { id: validated.roleId } },
       },
-      tx,
+      t,
     );
 
-    await writeAuditLog(tx, {
+    await writeAuditLog(t, {
       schoolId: validated.schoolId,
       entityType: "User",
       entityId: user.id,
@@ -82,10 +88,10 @@ export async function registerTeacher(
         school: { connect: { schoolId: validated.schoolId } },
         user: { connect: { id: user.id } },
       },
-      tx,
+      t,
     );
 
-    await writeAuditLog(tx, {
+    await writeAuditLog(t, {
       schoolId: validated.schoolId,
       entityType: "Teacher",
       entityId: teacher.id,
@@ -104,10 +110,10 @@ export async function registerTeacher(
           certificateDocumentId: q.certificateDocumentId,
           teacher: { connect: { id: teacher.id } },
         },
-        tx,
+        t,
       );
 
-      await writeAuditLog(tx, {
+      await writeAuditLog(t, {
         schoolId: validated.schoolId,
         entityType: "TeacherQualification",
         entityId: qualification.id,
@@ -120,7 +126,9 @@ export async function registerTeacher(
     }
 
     return toTeacherDTO(teacher, qualifications);
-  });
+  };
+
+  return tx ? run(tx) : db.$transaction(run);
 }
 
 /**
@@ -130,10 +138,18 @@ export async function registerTeacher(
  * docs/domain/EVENT_MODEL.md's `TeacherAssignmentChanged` event and
  * docs/database/TRANSACTION_BOUNDARIES.md's "one transaction per save
  * action" guidance for assignments.
+ *
+ * Optional `tx`, same passthrough pattern as registerTeacher() above. The
+ * post-create read-back (for the full relational DTO shape) happens via
+ * findTeacherAssignmentById(id, t) — the *same* transaction, not a separate
+ * post-commit call — since that read is a single findUnique()+include, not
+ * a create()+include, and so doesn't hit the decomposition issue
+ * createTeacherAssignment()'s own comment describes.
  */
 export async function assignTeacher(
   input: AssignTeacherInput,
   actorUserId: string,
+  tx?: Prisma.TransactionClient,
 ): Promise<TeacherAssignmentDTO> {
   const validated = assignTeacherInputSchema.parse(input);
 
@@ -168,7 +184,7 @@ export async function assignTeacher(
     }
   }
 
-  const assignmentId = await db.$transaction(async (tx) => {
+  const run = async (t: Prisma.TransactionClient) => {
     const assignment = await createTeacherAssignment(
       {
         teacher: { connect: { id: validated.teacherId } },
@@ -177,10 +193,10 @@ export async function assignTeacher(
         subject: validated.subjectId ? { connect: { id: validated.subjectId } } : undefined,
         isClassTeacher: validated.isClassTeacher,
       },
-      tx,
+      t,
     );
 
-    await writeAuditLog(tx, {
+    await writeAuditLog(t, {
       schoolId: teacher.schoolId,
       entityType: "TeacherAssignment",
       entityId: assignment.id,
@@ -194,16 +210,14 @@ export async function assignTeacher(
       },
     });
 
-    return assignment.id;
-  });
+    const created = await findTeacherAssignmentById(assignment.id, t);
+    if (!created) {
+      throw new Error(`Failed to load newly-created assignment: ${assignment.id}`);
+    }
+    return toTeacherAssignmentDTO(created);
+  };
 
-  // A standalone read, after the transaction has committed — not inside
-  // it. See createTeacherAssignment()'s own comment for why.
-  const created = await findTeacherAssignmentById(assignmentId);
-  if (!created) {
-    throw new Error(`Failed to load newly-created assignment: ${assignmentId}`);
-  }
-  return toTeacherAssignmentDTO(created);
+  return tx ? run(tx) : db.$transaction(run);
 }
 
 /**
@@ -215,10 +229,14 @@ export async function assignTeacher(
  * section/subject during the period the old row was active," which
  * `AttendanceRecord`/`MarksRecord` provenance depends on remaining
  * answerable once those tables exist.
+ *
+ * Optional `tx`, same passthrough pattern as assignTeacher() above,
+ * including the read-back-via-same-tx fix for the replacement assignment.
  */
 export async function updateTeacherAssignment(
   input: UpdateTeacherAssignmentInput,
   actorUserId: string,
+  tx?: Prisma.TransactionClient,
 ): Promise<{ ended: TeacherAssignmentDTO; replacement?: TeacherAssignmentDTO }> {
   const validated = updateTeacherAssignmentInputSchema.parse(input);
 
@@ -255,10 +273,10 @@ export async function updateTeacherAssignment(
     }
   }
 
-  const replacementId = await db.$transaction(async (tx) => {
-    const ended = await deactivateTeacherAssignment(validated.assignmentId, tx);
+  const run = async (t: Prisma.TransactionClient) => {
+    const ended = await deactivateTeacherAssignment(validated.assignmentId, t);
 
-    await writeAuditLog(tx, {
+    await writeAuditLog(t, {
       schoolId: existing.teacher.schoolId,
       entityType: "TeacherAssignment",
       entityId: ended.id,
@@ -272,7 +290,7 @@ export async function updateTeacherAssignment(
     });
 
     if (!validated.replacement) {
-      return null;
+      return { ended: toTeacherAssignmentDTO(existing) };
     }
 
     const replacement = await createTeacherAssignment(
@@ -285,10 +303,10 @@ export async function updateTeacherAssignment(
           : undefined,
         isClassTeacher: validated.replacement.isClassTeacher,
       },
-      tx,
+      t,
     );
 
-    await writeAuditLog(tx, {
+    await writeAuditLog(t, {
       schoolId: existing.teacher.schoolId,
       entityType: "TeacherAssignment",
       entityId: replacement.id,
@@ -302,23 +320,17 @@ export async function updateTeacherAssignment(
       },
     });
 
-    return replacement.id;
-  });
-
-  if (!replacementId) {
-    return { ended: toTeacherAssignmentDTO(existing) };
-  }
-
-  // A standalone read, after the transaction has committed — see
-  // createTeacherAssignment()'s own comment for why.
-  const replacement = await findTeacherAssignmentById(replacementId);
-  if (!replacement) {
-    throw new Error(`Failed to load newly-created assignment: ${replacementId}`);
-  }
-  return {
-    ended: toTeacherAssignmentDTO(existing),
-    replacement: toTeacherAssignmentDTO(replacement),
+    const replacementDto = await findTeacherAssignmentById(replacement.id, t);
+    if (!replacementDto) {
+      throw new Error(`Failed to load newly-created assignment: ${replacement.id}`);
+    }
+    return {
+      ended: toTeacherAssignmentDTO(existing),
+      replacement: toTeacherAssignmentDTO(replacementDto),
+    };
   };
+
+  return tx ? run(tx) : db.$transaction(run);
 }
 
 /**
@@ -327,10 +339,13 @@ export async function updateTeacherAssignment(
  * touch the teacher's existing `TeacherAssignment` rows: whether
  * deactivation should end active assignments is a real product decision no
  * document settles, so it's left unmodeled here rather than guessed at.
+ *
+ * Optional `tx`, same passthrough pattern as registerTeacher() above.
  */
 export async function deactivateTeacher(
   input: DeactivateTeacherInput,
   actorUserId: string,
+  tx?: Prisma.TransactionClient,
 ): Promise<TeacherDTO> {
   const validated = deactivateTeacherInputSchema.parse(input);
 
@@ -339,10 +354,10 @@ export async function deactivateTeacher(
     throw new Error(`Teacher not found: ${validated.teacherId}`);
   }
 
-  return db.$transaction(async (tx) => {
-    const updated = await updateTeacherStatus(validated.teacherId, "EXITED", tx);
+  const run = async (t: Prisma.TransactionClient) => {
+    const updated = await updateTeacherStatus(validated.teacherId, "EXITED", t);
 
-    await writeAuditLog(tx, {
+    await writeAuditLog(t, {
       schoolId: teacher.schoolId,
       entityType: "Teacher",
       entityId: teacher.id,
@@ -353,5 +368,7 @@ export async function deactivateTeacher(
     });
 
     return toTeacherDTO(updated);
-  });
+  };
+
+  return tx ? run(tx) : db.$transaction(run);
 }

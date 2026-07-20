@@ -15,11 +15,12 @@ export async function findAttendanceRecordBySessionAndEnrollment(
   });
 }
 
-// The standalone, post-commit read a service uses to build a DTO after
-// upsertAttendanceRecord() — same reasoning as
-// findTeacherAssignmentById()'s own comment.
-export async function findAttendanceRecordById(id: string) {
-  return db.attendanceRecord.findUnique({
+// The read a service uses to build a DTO after upsertAttendanceRecord() —
+// same reasoning as findTeacherAssignmentById()'s own comment: a plain
+// findUnique()+include is a single query, safe to call via the same `tx`
+// from inside the still-open transaction that just wrote the row.
+export async function findAttendanceRecordById(id: string, tx: Prisma.TransactionClient = db) {
+  return tx.attendanceRecord.findUnique({
     where: { id },
     include: { enrollment: { include: { student: true } } },
   });
