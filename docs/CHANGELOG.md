@@ -12,6 +12,36 @@ Nothing yet.
 
 ---
 
+## [0.31.0] — 2026-07-21 — Sprint D3: Upload, Detection & Smart Mapping
+
+The standard Upload/Detect/Map experience every future importer reuses — `/admin/imports/upload`, `/admin/imports/mapping`, `/admin/imports/preview`. See [D-045](./DECISIONS.md#d-045--sprint-d3-upload-detection--smart-mapping-two-new-dependencies-papaparseexceljs-import-profiles-formalize-d2s-ad-hoc-aliases-into-a-reusable-registry-a-live-found-next_redirect-swallowed-by-trycatch-bug-fixed-in-the-mapping-action).
+
+### Added
+
+- `papaparse`, `exceljs` dependencies — CSV/XLSX parsing behind a `FileParser` abstraction (`src/services/import/parsing/`); `exceljs` chosen over SheetJS `xlsx` on security-history grounds.
+- `prisma/migrations/20260721120000_import_raw_file_data/` — Migration 012: `ImportBatch.rawFileData`, transient parsed-file storage between Upload and Map confirmation.
+- `src/services/import/fileValidation.ts` — file type/empty/size validation, SHA-256 hashing.
+- `src/services/import/profiles.ts` — reusable Import Profiles (`ACADEMIC_STRUCTURE`, real; `STUDENT`, metadata-only) formalizing D2's ad hoc alias dictionary.
+- `src/services/import/detection.ts` — deterministic Import Type detection (alias-overlap scoring, no AI).
+- `src/services/import/columnMapping.ts` — generalized Smart Column Mapping + Saved Mapping Template reuse, superseding D2's academicStructure-only version.
+- `src/services/import/importHealth.ts` — Import Health Summary / deterministic Quality Score on top of D2's `buildDataProfile()`.
+- `src/services/import/importerRegistry.ts` — the one place answering "does this import type have a working importer today."
+- `src/services/import/upload.ts` — `uploadImportFile()`, `confirmImportMapping()`, `getPendingImportPreview()`.
+- `src/app/admin/imports/{upload,mapping,preview}/` — functional admin pages, no UI polish.
+
+### Fixed
+
+- The Mapping page's success-path `redirect()` was inside its own `try/catch`, so Next.js's internal `NEXT_REDIRECT` throw was caught and mistaken for a real error on every successful submission — found live (not by code review), fixed by moving every success redirect outside its `try` block in both the Upload and Mapping actions.
+- A stale `ImportBatch` row left over from an interrupted Sprint D2 verification attempt (never committed, no real entity affected) was found and removed.
+
+### Verified
+
+- Live scratch script: file validation rejects bad type/empty/oversized files; Detection correctly distinguishes Academic-Structure- and Student-shaped columns; CSV and XLSX both parse and commit real entities; Data Profiling catches duplicates; Saved Mapping Template reuse confirmed on a second upload; corrupted files rejected cleanly.
+- Live HTTP walkthrough of the actual pages: a real multipart file upload through `/admin/imports/upload`, through `/admin/imports/mapping`'s pre-filled form, through `/admin/imports/preview`'s Commit button, producing a real `SchoolClass`/`Section` confirmed by direct database query and correctly appearing in `/admin/imports` History.
+- `pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run build` all pass clean; `prisma validate`/`migrate status` confirm schema and migrations consistent.
+
+---
+
 ## [0.30.0] — 2026-07-21 — Sprint D2: Academic Structure Importer
 
 The first real Import Engine importer — the reference architecture every future importer (Student, Teacher, Attendance, Admission, Result) follows. See [D-044](./DECISIONS.md#d-044--sprint-d2-academic-structure-importer-first-real-importer-built-as-the-reference-architecture-two-genuine-gaps-found-in-sprint-d1s-own-foundation-and-fixed-importrowvalidator-widened-async-academicservicets-gains-transaction-passthrough-importentitytype-simplified-to-one-academic_structure-value).

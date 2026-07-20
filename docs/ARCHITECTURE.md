@@ -269,17 +269,32 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │                                         # importReport.dto.ts), extension-points.ts (ImportRowValidator —
 │                                         # async since D-044, ImportRowCommitHandler, suggestColumnMappings()),
 │                                         # profiling.ts (buildDataProfile(), generic/pure/reusable, D-044).
+│                                         # parsing/ — Built, Sprint D3, D-045: csvParser.ts (papaparse),
+│                                         # xlsxParser.ts (exceljs), index.ts (parseImportFile() dispatcher,
+│                                         # detectFileFormatFromFilename() — "importer must never know parser
+│                                         # type"). fileValidation.ts (validateUploadedFile(), computeFileHash()
+│                                         # — D-045). profiles.ts (ImportProfile, IMPORT_PROFILES —
+│                                         # ACADEMIC_STRUCTURE real, STUDENT metadata-only, D-045).
+│                                         # detection.ts (detectImportType() — deterministic alias-overlap
+│                                         # scoring, no AI, D-045). columnMapping.ts (suggestColumnMapping(),
+│                                         # getSavedColumnMapping() — generalized D-045, D2's own
+│                                         # academicStructure/aliases.ts now a thin wrapper around these).
+│                                         # importHealth.ts (buildImportHealthSummary() — Quality Score on top
+│                                         # of buildDataProfile(), D-045). importerRegistry.ts
+│                                         # (getImporterRegistration()/isImportTypeSupported() — the one place
+│                                         # that answers "does this import type have a working importer today",
+│                                         # D-045). upload.ts (uploadImportFile(), confirmImportMapping(),
+│                                         # getPendingImportPreview() — D-045).
 │                                         # importers/academicStructure/ — Built, Sprint D2, D-044, the first
 │                                         # real importer and the reference architecture: rows.ts
 │                                         # (groupAcademicStructureRows() — one row per source line collapses
 │                                         # into one row per unique class with its full section list, one per
-│                                         # subject), aliases.ts (column alias dictionary +
-│                                         # getAcademicStructureColumnMappingTemplate(), the first real caller
-│                                         # of D1's findMostRecentBatchByType()), validator.ts
-│                                         # (createAcademicStructureValidator() — Business + Database
-│                                         # Validation), commitHandler.ts (reuses createSchoolClassWithSections()/
-│                                         # createAcademicSubject() via their new tx passthrough), profile.ts,
-│                                         # importer.ts (top-level orchestration: startAcademicStructureImport(),
+│                                         # subject), aliases.ts (thin wrapper around columnMapping.ts, D-045),
+│                                         # validator.ts (createAcademicStructureValidator() — Business +
+│                                         # Database Validation), commitHandler.ts (reuses
+│                                         # createSchoolClassWithSections()/createAcademicSubject() via their
+│                                         # new tx passthrough), profile.ts, importer.ts (top-level
+│                                         # orchestration: startAcademicStructureImport(),
 │                                         # validateAcademicStructureImport(),
 │                                         # commitAcademicStructureImportChunk())
 ├── prisma/
@@ -293,7 +308,9 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │                                   # historical-fact category — no delete mechanism, per
 │   │                                   # SOFT_DELETE_STRATEGY.md § 1); ImportEntityType's SCHOOL_CLASS/SECTION/
 │   │                                   # SUBJECT replaced with one ACADEMIC_STRUCTURE value (Migration 011,
-│   │                                   # D-044) (Migrations 000-011)
+│   │                                   # D-044); ImportBatch +rawFileData (Migration 012, D-045 — transient
+│   │                                   # parsed-file storage between Upload and Map confirm, cleared after
+│   │                                   # ingestion) (Migrations 000-012)
 │   ├── seed.ts                       # Seeds School + AcademicYear + 3 Roles (always) + 1 Bootstrap Administrator
 │   │                                   # (idempotent, DEFAULT_BOOTSTRAP_ADMIN_* constants, mustChangePassword: true,
 │   │                                   # always) + 11 SchoolClasses (Nursery-8, sections A/B) + 10 generic Subjects +

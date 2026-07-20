@@ -1,13 +1,15 @@
+import Link from "next/link";
+
 import { requirePermission, canManageImports } from "@/lib/authorization";
 import { listImportBatches } from "@/services/import";
+import { Button } from "@/components/ui/button";
 
-// History stage — a deliberately minimal Server Component, per this
-// sprint's own "architecture only, no polished UI required" instruction.
-// No Upload/Map/Validate/Preview/Commit UI exists yet (Sprint D1 builds
-// foundation only, no entity-specific importer to drive that flow) — this
-// page proves the repository/service/route layer works end to end and
-// will show "No imports yet" until a future sprint's entity importer
-// actually creates an ImportBatch.
+// History stage — reuses listImportBatches() unchanged since Sprint D1;
+// "no special handling" per every sprint since. Upload/Detect/Map/Preview
+// now exist (Sprint D3, /admin/imports/upload) — a batch stuck at
+// UPLOADED/DETECTED/MAPPED/VALIDATED/PREVIEWED means an Admin started an
+// import and didn't finish it; nothing here resumes that automatically
+// (this sprint's own "no UI polish" scope), the Admin re-visits Upload.
 export default async function ImportsPage({
   searchParams,
 }: {
@@ -25,12 +27,17 @@ export default async function ImportsPage({
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
-      <h1 className="mb-2 text-2xl font-semibold">Import History</h1>
-      <p className="text-muted-foreground mb-6 text-sm">
-        Every Import Batch run against this school, past and in progress. No entity-specific
-        importer exists yet (Epic D — Data Migration Engine, Sprint D1 built the foundation only) —
-        this list will populate once one does.
-      </p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Import History</h1>
+          <p className="text-muted-foreground text-sm">
+            Every Import Batch run against this school, past and in progress.
+          </p>
+        </div>
+        <Link href="/admin/imports/upload">
+          <Button type="button">Upload File</Button>
+        </Link>
+      </div>
 
       <table className="w-full border-collapse text-sm">
         <thead>

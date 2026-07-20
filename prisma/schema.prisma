@@ -861,6 +861,16 @@ model ImportBatch {
   // (schoolId, importType) to pre-fill this as a suggestion, not build a
   // separate mapping-template table this sprint doesn't yet need.
   columnMapping   Json?            @map("column_mapping")
+  // Parsed-but-not-yet-mapped file contents ({ columns: string[], rows:
+  // Record<string, unknown>[] }) — Sprint D3's Upload stage stores the
+  // parser's raw output here (status DETECTED) so the Mapping page (a
+  // separate page navigation, not the same request) can read it back;
+  // cleared to null once Map is confirmed and ingestImportRows() has
+  // turned it into real ImportRow records — never holds data for a
+  // COMPLETED/FAILED/PARTIALLY_COMPLETED batch. Storing it here, not a new
+  // table, follows the same "extend ImportBatch, don't invent a table for
+  // transient state" reasoning columnMapping above already established.
+  rawFileData     Json?            @map("raw_file_data")
   totalRows       Int?             @map("total_rows")
   successCount    Int              @default(0) @map("success_count")
   errorCount      Int              @default(0) @map("error_count")
