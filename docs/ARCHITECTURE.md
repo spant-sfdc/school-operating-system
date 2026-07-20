@@ -221,7 +221,10 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │                                     # updateImportRowsStatus() (bulk), countImportRowsByStatus()
 │   └── services/                    # Business-logic layer, composed from repositories — see D-028/D-030/D-031/D-032/D-033
 │       ├── identity/                  # createIdentityUser() — validated create + role lookup + transactional AuditLog write
-│       ├── academic/                  # createSchoolClassWithSections(), createAcademicSubject()
+│       ├── academic/                  # createSchoolClassWithSections(), createAcademicSubject() — both gained
+│       │                                 # an optional `tx?: Prisma.TransactionClient` parameter, Sprint D2,
+│       │                                 # D-044 (transaction passthrough for the Import Engine's commit
+│       │                                 # handler; omitted, behavior is unchanged)
 │       ├── student/                   # registerStudent(), enrollStudent() — lifecycle-oriented, not CRUD; the first
 │       │                                 # DTO layer (student.dto.ts, guardian.dto.ts, enrollment.dto.ts) — see D-031
 │       ├── teacher/                   # registerTeacher(), assignTeacher(), updateTeacherAssignment(),
@@ -256,16 +259,29 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │       │                                 # getConfigurationSummary() — dto/ subfolder (schoolConfiguration.dto.ts,
 │       │                                 # configurationStatus.dto.ts — reuses the bracketed-placeholder
 │       │                                 # convention and TEXT_REGISTRY.md's own P0/P1/P2 priorities)
-│       └── import/                    # Built, Sprint D1, D-043 (Epic D, foundation only) — entity-agnostic
-│                                         # orchestration: createImportBatch(), ingestImportRows(),
-│                                         # validateImportBatch(), previewImportBatch(), skipInvalidRows(),
-│                                         # commitImportBatchChunk() (resumable, one transaction per row not per
-│                                         # chunk — TRANSACTION_BOUNDARIES.md § 4's Rollover precedent),
+│       └── import/                    # Built, Sprint D1, D-043 (Epic D) — entity-agnostic orchestration:
+│                                         # createImportBatch(), ingestImportRows(), validateImportBatch(),
+│                                         # previewImportBatch(), skipInvalidRows(), commitImportBatchChunk()
+│                                         # (resumable, one transaction per row not per chunk —
+│                                         # TRANSACTION_BOUNDARIES.md § 4's Rollover precedent),
 │                                         # getImportReport(), listImportBatches(), getImportBatchDetail() —
 │                                         # dto/ subfolder (importBatch.dto.ts, importRow.dto.ts,
-│                                         # importReport.dto.ts), extension-points.ts (ImportRowValidator,
-│                                         # ImportRowCommitHandler, suggestColumnMappings() — no real
-│                                         # entity-specific implementation exists yet)
+│                                         # importReport.dto.ts), extension-points.ts (ImportRowValidator —
+│                                         # async since D-044, ImportRowCommitHandler, suggestColumnMappings()),
+│                                         # profiling.ts (buildDataProfile(), generic/pure/reusable, D-044).
+│                                         # importers/academicStructure/ — Built, Sprint D2, D-044, the first
+│                                         # real importer and the reference architecture: rows.ts
+│                                         # (groupAcademicStructureRows() — one row per source line collapses
+│                                         # into one row per unique class with its full section list, one per
+│                                         # subject), aliases.ts (column alias dictionary +
+│                                         # getAcademicStructureColumnMappingTemplate(), the first real caller
+│                                         # of D1's findMostRecentBatchByType()), validator.ts
+│                                         # (createAcademicStructureValidator() — Business + Database
+│                                         # Validation), commitHandler.ts (reuses createSchoolClassWithSections()/
+│                                         # createAcademicSubject() via their new tx passthrough), profile.ts,
+│                                         # importer.ts (top-level orchestration: startAcademicStructureImport(),
+│                                         # validateAcademicStructureImport(),
+│                                         # commitAcademicStructureImportChunk())
 ├── prisma/
 │   ├── schema.prisma                # AuditLog, School, AcademicYear, Role, User (+mustChangePassword, D-036),
 │   │                                   # Account, Session, VerificationToken, SchoolClass, Section, Subject, Student,
@@ -275,7 +291,9 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │                                   # email/phone/address/schoolTimings/officeTimings/logoUrl/faviconUrl
 │   │                                   # (Migration 009, D-041), ImportBatch, ImportRow (Migration 010, D-043,
 │   │                                   # historical-fact category — no delete mechanism, per
-│   │                                   # SOFT_DELETE_STRATEGY.md § 1) (Migrations 000-010)
+│   │                                   # SOFT_DELETE_STRATEGY.md § 1); ImportEntityType's SCHOOL_CLASS/SECTION/
+│   │                                   # SUBJECT replaced with one ACADEMIC_STRUCTURE value (Migration 011,
+│   │                                   # D-044) (Migrations 000-011)
 │   ├── seed.ts                       # Seeds School + AcademicYear + 3 Roles (always) + 1 Bootstrap Administrator
 │   │                                   # (idempotent, DEFAULT_BOOTSTRAP_ADMIN_* constants, mustChangePassword: true,
 │   │                                   # always) + 11 SchoolClasses (Nursery-8, sections A/B) + 10 generic Subjects +

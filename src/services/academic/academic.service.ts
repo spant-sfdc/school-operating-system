@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import type { Prisma } from "@/generated/prisma/client";
 import { writeAuditLog } from "@/lib/db-utils";
 import { createSchoolClass, findSchoolClassByName } from "@/repositories/schoolClass";
 import { createSection } from "@/repositories/section";
@@ -17,13 +18,22 @@ import {
  * docs/database/TRANSACTION_BOUNDARIES.md § 1, the class, its sections, and
  * their own AuditLog entries are written in one transaction.
  *
- * Not called by any route or UI yet — this sprint is data/infrastructure
- * only. A future "Admin adds a class" flow (Sprint 3+) calls this same
- * function, unchanged.
+ * Called directly by the manual Admin flow (no `tx`, this function opens
+ * its own transaction as before) and by the Academic Structure Importer's
+ * own commit handler (Sprint D1's `commitImportBatchChunk()` already opens
+ * a per-row transaction and needs this function's writes — and its own
+ * AuditLog entries — to land inside that *same* transaction, not a second,
+ * independent one; the entity write and the ImportRow status update must
+ * both succeed or both roll back together, so a crash between them can
+ * never leave one done and the other not). The optional `tx` parameter is
+ * the same passthrough pattern every repository in this codebase already
+ * uses — see docs/DECISIONS.md's Sprint D2 entry for why this was a real
+ * gap, not a pattern applied speculatively.
  */
 export async function createSchoolClassWithSections(
   input: CreateSchoolClassWithSectionsInput,
   actorUserId: string,
+  tx?: Prisma.TransactionClient,
 ) {
   const validated = createSchoolClassWithSectionsInputSchema.parse(input);
 
@@ -32,17 +42,17 @@ export async function createSchoolClassWithSections(
     throw new Error(`A class named "${validated.className}" already exists at this school.`);
   }
 
-  return db.$transaction(async (tx) => {
+  const run = async (t: Prisma.TransactionClient) => {
     const schoolClass = await createSchoolClass(
       {
         name: validated.className,
         sortOrder: validated.sortOrder,
         school: { connect: { schoolId: validated.schoolId } },
       },
-      tx,
+      t,
     );
 
-    await writeAuditLog(tx, {
+    await writeAuditLog(t, {
       schoolId: validated.schoolId,
       entityType: "SchoolClass",
       entityId: schoolClass.id,
@@ -59,10 +69,10 @@ export async function createSchoolClassWithSections(
           schoolClass: { connect: { id: schoolClass.id } },
           academicYear: { connect: { id: validated.academicYearId } },
         },
-        tx,
+        t,
       );
 
-      await writeAuditLog(tx, {
+      await writeAuditLog(t, {
         schoolId: validated.schoolId,
         entityType: "Section",
         entityId: section.id,
@@ -75,7 +85,9 @@ export async function createSchoolClassWithSections(
     }
 
     return { schoolClass, sections };
-  });
+  };
+
+  return tx ? run(tx) : db.$transaction(run);
 }
 
 /**
@@ -83,8 +95,15 @@ export async function createSchoolClassWithSections(
  * linked to any `SchoolClass` yet; that join (`ClassSubject`, per
  * docs/database/MIGRATION_PLAN.md's original "Migration 002" row) is
  * deliberately out of this sprint's scope.
+ *
+ * Optional `tx`, same reasoning as createSchoolClassWithSections() above —
+ * see docs/DECISIONS.md's Sprint D2 entry.
  */
-export async function createAcademicSubject(input: CreateSubjectInput, actorUserId: string) {
+export async function createAcademicSubject(
+  input: CreateSubjectInput,
+  actorUserId: string,
+  tx?: Prisma.TransactionClient,
+) {
   const validated = createSubjectInputSchema.parse(input);
 
   const existing = await findSubjectByName(validated.schoolId, validated.name);
@@ -92,17 +111,17 @@ export async function createAcademicSubject(input: CreateSubjectInput, actorUser
     throw new Error(`A subject named "${validated.name}" already exists at this school.`);
   }
 
-  return db.$transaction(async (tx) => {
+  const run = async (t: Prisma.TransactionClient) => {
     const subject = await createSubject(
       {
         name: validated.name,
         code: validated.code,
         school: { connect: { schoolId: validated.schoolId } },
       },
-      tx,
+      t,
     );
 
-    await writeAuditLog(tx, {
+    await writeAuditLog(t, {
       schoolId: validated.schoolId,
       entityType: "Subject",
       entityId: subject.id,
@@ -112,5 +131,7 @@ export async function createAcademicSubject(input: CreateSubjectInput, actorUser
     });
 
     return subject;
-  });
+  };
+
+  return tx ? run(tx) : db.$transaction(run);
 }

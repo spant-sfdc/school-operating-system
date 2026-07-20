@@ -777,13 +777,19 @@ model FrameworkConfig {
 // volume — one row per import run, matching AttendanceSession/
 // FrameworkConfig's precedent).
 
+// SCHOOL_CLASS/SECTION/SUBJECT (Sprint D1) replaced with one ACADEMIC_STRUCTURE
+// value, Sprint D2 — EPIC_ROADMAP.md's own Epic D Implementation Order item 6
+// and IMPORT_ENGINE_STRATEGY.md both describe Classes/Sections/Subjects as
+// ONE import type (a school's academic-structure spreadsheet is one file,
+// not three separate uploads), and D1 shipped with zero real importer using
+// the three-way split — confirmed via grep, no code outside D1's own
+// scaffolding referenced any of the three values. Safe to replace rather
+// than leave as permanent unused clutter, since nothing depended on them.
 enum ImportEntityType {
   STUDENT
   TEACHER
   GUARDIAN
-  SCHOOL_CLASS
-  SECTION
-  SUBJECT
+  ACADEMIC_STRUCTURE
   ATTENDANCE
   ADMISSION
   RESULT

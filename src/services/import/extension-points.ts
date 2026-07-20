@@ -19,14 +19,21 @@ export interface ImportRowValidationResult {
 // Wraps a future importer's own existing Zod schema (registerStudentInputSchema,
 // registerTeacherInputSchema, ...) — reusing the exact same validation the
 // manual Admin-form path already uses, per IMPORT_ENGINE_STRATEGY.md § 2.3's
-// "no duplicated validation logic" rule. This is Business Validation in this
-// sprint's Validation Strategy (see docs/DECISIONS.md's Sprint D1 entry) —
-// File/Column validation already happened before a row reaches this stage;
-// Database validation (does the row's className/sectionName resolve to a
-// real SchoolClass/Section) is a future importer's own concern too, since it
-// requires entity-specific repository knowledge this foundation doesn't have.
+// "no duplicated validation logic" rule. Covers both Business Validation
+// (field-level, the row's own data) and Database Validation (does a
+// referenced value resolve to a real row — e.g. does className already
+// exist, does academicYearLabel resolve to a real AcademicYear) in one
+// pass, since IMPORT_ENGINE_STRATEGY.md § 2.3 runs both in the same Validate
+// stage; File/Column validation already happened before a row reaches this
+// stage. Returns a Promise — Sprint D1 originally specified this
+// synchronous, but Sprint D2's own Academic Structure importer (the first
+// real implementation) found that Database Validation is not optional for
+// a real importer (duplicate-detection, reference resolution both require a
+// query) — see docs/DECISIONS.md's Sprint D2 entry.
 export interface ImportRowValidator {
-  validateRow(rawData: Record<string, unknown>): ImportRowValidationResult;
+  validateRow(
+    rawData: Record<string, unknown>,
+  ): ImportRowValidationResult | Promise<ImportRowValidationResult>;
 }
 
 // Wraps a future importer's own existing lifecycle service call

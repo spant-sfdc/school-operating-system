@@ -12,6 +12,28 @@ Nothing yet.
 
 ---
 
+## [0.30.0] — 2026-07-21 — Sprint D2: Academic Structure Importer
+
+The first real Import Engine importer — the reference architecture every future importer (Student, Teacher, Attendance, Admission, Result) follows. See [D-044](./DECISIONS.md#d-044--sprint-d2-academic-structure-importer-first-real-importer-built-as-the-reference-architecture-two-genuine-gaps-found-in-sprint-d1s-own-foundation-and-fixed-importrowvalidator-widened-async-academicservicets-gains-transaction-passthrough-importentitytype-simplified-to-one-academic_structure-value).
+
+### Added
+
+- `src/services/import/profiling.ts` — `buildDataProfile()`, a generic, pure, entity-agnostic Data Profiling function (duplicates, missing values, unknown values, warnings, errors) — the Import Engine foundation's own reusable artifact, not buried inside one importer.
+- `src/services/import/importers/academicStructure/` — the Academic Structure Importer: `rows.ts` (raw-row grouping — one row per class with its full section list, one row per subject), `aliases.ts` (column alias dictionary + mapping-template reuse), `validator.ts` (Business + Database Validation), `commitHandler.ts` (reuses `createSchoolClassWithSections()`/`createAcademicSubject()` unchanged), `profile.ts`, `importer.ts` (top-level orchestration).
+- `prisma/migrations/20260721000000_academic_structure_import_type/` — Migration 011: `ImportEntityType`'s `SCHOOL_CLASS`/`SECTION`/`SUBJECT` replaced with one `ACADEMIC_STRUCTURE` value.
+
+### Fixed (Sprint D1's own foundation)
+
+- `ImportRowValidator.validateRow()` widened from synchronous to `Promise`-returning — Database Validation (duplicate detection, reference resolution) genuinely needs a query, which D1's original synchronous contract couldn't support. Additive/widening, not breaking.
+- `createSchoolClassWithSections()`/`createAcademicSubject()` (`src/services/academic/academic.service.ts`) gained an optional `tx?: Prisma.TransactionClient` parameter — without it, a real idempotency bug existed: calling either from inside a commit handler would open a second, independent transaction, and a retry after a partial failure could re-throw "already exists" on a row that had actually already succeeded. Byte-for-byte backward compatible when `tx` is omitted.
+
+### Verified
+
+- Live scratch script, real (not synthetic) entity creation: 7 raw rows → grouped to 4 → Data Profiling flagged 2 duplicate rows + 1 unknown academic year → Validation correctly split 2 valid / 2 invalid (unknown year; a class already seeded by `prisma/seed.ts`) → Preview → Skip → Commit produced 2 committed, 0 failed, batch `COMPLETED` → a real `SchoolClass` with 2 deduped `Section`s and a real `Subject` confirmed created through the actual, unmodified services → 4 entity-level + 5 batch-level `AuditLog` entries confirmed → batch appeared correctly in `/admin/imports`'s own data layer, unchanged from D1. All test data removed afterward via scratch-script-only cleanup.
+- `pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run build` all pass clean; `prisma validate`/`migrate status` confirm schema and migrations consistent.
+
+---
+
 ## [0.29.0] — 2026-07-20 — Sprint D1: Import Engine Architecture & Foundation
 
 The architectural foundation for Epic D's Import Engine — reusable infrastructure only, no entity-specific importer built. See [D-043](./DECISIONS.md#d-043--sprint-d1-import-engine-architecture--foundation-two-new-tables-importbatchimportrow-each-independently-justified-chunked-commit-is-one-transaction-per-row-not-per-chunk-matching-transaction_boundariesmd--4s-rollover-precedent-entity-agnostic-extension-points-only--no-real-importer-built).

@@ -37,6 +37,7 @@ import {
   type ImportRowListDTO,
   type ImportReportDTO,
   type ImportErrorGroup,
+  type ImportRowError,
 } from "@/services/import/dto";
 
 const ENTITY_TYPE = "ImportBatch";
@@ -176,13 +177,10 @@ export async function validateImportBatch(
   });
 
   const validIds: string[] = [];
-  const invalidUpdates: Array<{
-    id: string;
-    errors: ReturnType<ImportRowValidator["validateRow"]>["errors"];
-  }> = [];
+  const invalidUpdates: Array<{ id: string; errors: ImportRowError[] }> = [];
 
   for (const row of pendingRows) {
-    const result = validator.validateRow(row.rawData as Record<string, unknown>);
+    const result = await validator.validateRow(row.rawData as Record<string, unknown>);
     if (result.valid) {
       validIds.push(row.id);
     } else {
