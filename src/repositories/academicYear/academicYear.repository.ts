@@ -9,6 +9,14 @@ export async function findAcademicYearByLabel(schoolId: string, label: string) {
   return db.academicYear.findUnique({ where: { schoolId_label: { schoolId, label } } });
 }
 
+export async function updateAcademicYear(
+  id: string,
+  input: Prisma.AcademicYearUpdateInput,
+  tx: Prisma.TransactionClient = db,
+) {
+  return tx.academicYear.update({ where: { id }, data: input });
+}
+
 export async function upsertAcademicYear(
   schoolId: string,
   label: string,

@@ -29,3 +29,7 @@ export function canResetPasswords(subject: AuthorizationSubject): boolean {
 export function canDeactivateUsers(subject: AuthorizationSubject): boolean {
   return subject.accessLevel === "ADMIN";
 }
+
+export function canManageSystemSetup(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN";
+}

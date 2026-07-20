@@ -68,5 +68,15 @@ export default async function middleware(request: NextRequest) {
   // enforce the actual accessLevel-specific, deactivation-aware guard once
   // real pages land under them; this middleware's job is only the coarse
   // "is there a plausible session at all" gate for every non-public path.
-  return NextResponse.next();
+  //
+  // x-pathname (Sprint B3): Server Component layouts have no direct
+  // equivalent of the client-only usePathname() hook — this is the
+  // documented Next.js pattern for making the current path readable via
+  // headers() downstream. Used by src/app/admin/layout.tsx to avoid
+  // redirecting /admin/setup to itself when setup isn't complete yet. No
+  // database read added here — still a pure pass-through, preserving the
+  // Edge/Node split D-035 established.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-pathname", pathname);
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }

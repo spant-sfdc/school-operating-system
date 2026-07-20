@@ -1,7 +1,11 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/lib/auth";
 import { CHANGE_PASSWORD_PATH } from "@/lib/authorization";
+import { isSetupComplete } from "@/services/system";
+
+const SETUP_WIZARD_PATH = "/admin/setup";
 
 // Route guard only — per ROUTES.md § Route Guards' already-documented "Admin
 // guard" behavior, implemented for the first time this sprint. No dashboard
@@ -26,6 +30,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // can never drift apart — see D-038.
   if (session.user.mustChangePassword) {
     redirect(CHANGE_PASSWORD_PATH);
+  }
+
+  // First-Time Setup Wizard (Sprint B3) — every /admin/* route redirects
+  // here until setup is finalized, except the wizard's own page (would
+  // otherwise redirect to itself in a loop). x-pathname comes from
+  // src/middleware.ts, the documented way a Server Component layout reads
+  // the current path — see D-039.
+  const requestHeaders = await headers();
+  const pathname = requestHeaders.get("x-pathname") ?? "";
+  if (pathname !== SETUP_WIZARD_PATH && !(await isSetupComplete())) {
+    redirect(SETUP_WIZARD_PATH);
   }
 
   return <>{children}</>;

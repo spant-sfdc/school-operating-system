@@ -693,3 +693,31 @@ model AttendanceRecord {
   @@index([enrollmentId])
   @@map("attendance_records")
 }
+
+// --- Migration 008: Framework Configuration ---------------------------------
+// Sprint B3 — First-Time Setup Wizard & System Readiness. A singleton
+// bookkeeping record — exactly one row per deployment, never per-school
+// (matches this platform's one-repository-per-school model, D-034) —
+// recording what was true *at the moment setup was completed*, not live
+// system state. Live state (is the database reachable right now, do the
+// required rows currently exist) is answered by checkSystemReadiness()
+// (src/services/system/) on every call, computed fresh from the actual
+// tables each time — never cached here, since a cached "is everything OK"
+// flag would silently go stale the moment something changed after setup.
+// setupCompletedBy is a plain string (an actorUserId), not a hard FK to
+// User — same reasoning as AuditLog.actorUserId (Migration 000's own
+// comment): a deleted/deactivated actor must not corrupt this record's
+// history. See docs/DECISIONS.md's Sprint B3 entry (D-039).
+model FrameworkConfig {
+  id                String    @id @default(cuid())
+  frameworkVersion  String    @map("framework_version")
+  databaseVersion   String?   @map("database_version")
+  migrationVersion  String?   @map("migration_version")
+  setupCompleted    Boolean   @default(false) @map("setup_completed")
+  setupCompletedAt  DateTime? @map("setup_completed_at") @db.Timestamptz(3)
+  setupCompletedBy  String?   @map("setup_completed_by")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("framework_config")
+}

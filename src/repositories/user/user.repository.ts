@@ -17,6 +17,21 @@ export async function listUsersBySchool(schoolId: string) {
   });
 }
 
+// "Does an Admin-tier account exist and can it actually log in" — the
+// Bootstrap/Authentication readiness signals a system-readiness check
+// needs. Deliberately checks accessLevel (Administrator or Principal both
+// qualify), not a specific email — a real deployment's bootstrap email
+// varies (BOOTSTRAP_ADMIN_EMAIL), and an Admin may have since been renamed
+// or a second Admin created; matching on role tier is the correct, durable
+// signal, not this dev repository's own placeholder address.
+export async function findFirstActiveAdminUser(schoolId: string) {
+  return db.user.findFirst({
+    where: { schoolId, deactivatedAt: null, role: { accessLevel: "ADMIN" } },
+    include: { role: true },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
 export async function createUser(input: Prisma.UserCreateInput, tx: Prisma.TransactionClient = db) {
   return tx.user.create({ data: input, include: { role: true } });
 }

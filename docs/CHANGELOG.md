@@ -12,6 +12,60 @@ Nothing yet.
 
 ---
 
+## [0.25.0] — 2026-07-20 — Sprint B3: First-Time Setup Wizard & System Readiness
+
+A production-readiness gate for this platform's clone-per-client delivery model: a Setup Wizard every cloned deployment passes through before its Admin surface is usable, and one reusable `checkSystemReadiness()` service. See [D-039](./DECISIONS.md#d-039--sprint-b3-first-time-setup-wizard--system-readiness-frameworkconfig-as-a-write-once-snapshot-not-a-live-cache-one-checksystemreadiness-service-reused-by-three-consumers-middleware-x-pathname-header-for-a-server-component-loop-safe-redirect). No charts, analytics, Attendance/Student/Teacher UI, or Import Engine built.
+
+### Added
+
+- `prisma/migrations/20260719120000_framework_configuration/` — Migration 008: `FrameworkConfig`, a singleton, write-once "what was true when setup completed" snapshot (`frameworkVersion`/`databaseVersion`/`migrationVersion`/`setupCompleted`/`setupCompletedAt`/`setupCompletedBy`) — never a live-state cache.
+- `src/repositories/frameworkConfig/` — `findFrameworkConfig()`, `createFrameworkConfig()`, `updateFrameworkConfig()`.
+- `src/services/system/` — `checkSystemReadiness()` (Database/Schema/Bootstrap/Roles/School/AcademicYear/Authentication/Version/Overall, computed fresh on every call), `getSchoolDetails()`/`updateSchoolDetails()`, `getBootstrapAdminDetails()`, `getFrameworkConfig()`, `isSetupComplete()`, `completeSetup()`.
+- `src/app/admin/setup/` — the Setup Wizard: System Verification, School Verification (the first real edit UI for `School`/`AcademicYear`), Bootstrap Verification (links to the existing `/admin/users/[id]/reset-password`), Finalize Setup. Remains reachable after completion for ongoing review.
+- `src/app/admin/system/` — Developer Information: live readiness plus the stored `FrameworkConfig` snapshot.
+- `src/lib/version.ts` — `getFrameworkVersion()`, reads `package.json`.
+- `src/lib/validations/setup.ts` — `updateSchoolDetailsInputSchema`.
+
+### Changed
+
+- `src/app/admin/layout.tsx` — redirects every `/admin/*` route to `/admin/setup` until setup is finalized (except the wizard itself).
+- `src/app/admin/page.tsx` — rewritten Admin Home: System Ready / Framework Version / Current School / Current Academic Year / Current User + Quick Actions, replacing the Sprint B1/B2 bare link-list stub.
+- `src/middleware.ts` — sets an `x-pathname` request header (additive, no new database read) so the Admin layout's Server Component guard can read the current path and avoid redirecting `/admin/setup` to itself.
+- `src/repositories/school/school.repository.ts`, `src/repositories/academicYear/academicYear.repository.ts` — additive `findFirstSchool()`/`updateSchool()`, `updateAcademicYear()`.
+- `src/repositories/user/user.repository.ts` — additive `findFirstActiveAdminUser()`.
+- `src/lib/db-utils.ts` — additive `checkMigrationsApplied()`, `getDatabaseVersion()`.
+- `src/lib/authorization/permissions.ts` — additive `canManageSystemSetup()`.
+
+### Documentation
+
+- `docs/DECISIONS.md` — added D-039, including the required pre-implementation Architecture Review (what's seeded, what should remain seeded, what should be configurable, what should only exist during first deployment) and a named-not-fixed finding: the generic Nursery–8 class/section/subject seed list is likely also a dev-fixture, Epic C's scope, not this sprint's.
+- `docs/ROUTES.md`, `docs/ARCHITECTURE.md`, `docs/PROJECT_CONTEXT.md`, `docs/FEATURE_STATUS.md`, `docs/TASKS.md` updated.
+
+### Verified
+
+End to end against a live, freshly built production server: first startup (fresh login, setup not yet complete) → `/admin` redirects to `/admin/setup` → all seven readiness checks Ready against the existing seeded dev database → School Verification edit persisted and confirmed on reload → Bootstrap Verification shows the Administrator account with a working reset-password link → Finalize Setup → `/admin` now renders Admin Home directly → `/admin/setup` remains reachable, now showing "already completed" → logout, fresh login (second startup) → lands directly on `/admin`, no wizard detour → `/admin/system` shows live readiness plus the stored setup record → regression-checked `/admin/users`, `/admin/users/new`, and Teacher login/`/teacher` unaffected.
+
+---
+
+## [0.24.2] — 2026-07-19 — Sprint B2.2: Post-Login Redirect Fix
+
+Login defaulted to the public `/` homepage instead of `/change-password` (when forced) or a role-appropriate landing page — `/` has no route guard, so nothing downstream ever caught and re-routed an authenticated visitor who landed there. See [D-038](./DECISIONS.md#d-038--sprint-b22-post-login-redirect-single-resolvepostloginredirect-resolver-replaces-three-independent-role-mapping-implementations-auth-does-not-see-a-same-request-signinredirectfalse-cookie-in-this-nextjs-version).
+
+### Fixed
+
+- `src/app/(auth)/login/page.tsx` — `loginAction` now computes the post-login destination via a pre-flight `authenticateUser()` call and the new `resolvePostLoginRedirect()`, passed to `signIn()` as `redirectTo`. A first attempt using `signIn({redirect:false})` followed by an `auth()` re-read in the same Server Action was abandoned after live testing showed the freshly-set session cookie isn't visible to that immediate re-read in this Next.js version.
+- `src/app/change-password/actions.ts` — post-change redirect now calls the same `resolvePostLoginRedirect()` instead of its own independent `accessLevel === "ADMIN" ? "/admin" : "/teacher"` ternary.
+
+### Added
+
+- `src/lib/authorization/redirect.ts` — `resolvePostLoginRedirect()`, `CHANGE_PASSWORD_PATH`, `ADMIN_HOME_PATH`, `TEACHER_HOME_PATH` — the single authoritative post-login/post-password-change destination resolver, now the only place this role-mapping logic exists.
+
+### Verified
+
+Bootstrap login (`mustChangePassword: true`) → `/change-password` directly, no stop at `/` → password change → `/admin` → logout → login again → directly `/admin`, no detour. Repeated for a Teacher account — forced change lands on `/teacher`, not `/admin`. Regression-tested: wrong password still shows the existing error; an unauthenticated deep link to `/admin/users` still round-trips through `callbackUrl` after a non-forced login.
+
+---
+
 ## [0.24.1] — 2026-07-19 — Sprint B2.1: Authentication Stabilization & Verification
 
 Investigated a release-blocking report ("Bootstrap Administrator cannot log in") end to end. **Root cause: not a code defect.** Sprint B2's own verification testing had changed the Bootstrap Administrator's live password while exercising `/change-password`, and never restored it — so the live database silently diverged from `docs/development/DEVELOPMENT_LOGIN.md`. Every layer of the authentication pipeline (seed script, `authenticateUser()`, Credentials provider, JWT/session callbacks, middleware, login UI) was traced and confirmed correct. See [D-037](./DECISIONS.md#d-037--sprint-b21-authentication-stabilization-root-cause-was-stale-live-credentials-not-a-code-defect).
