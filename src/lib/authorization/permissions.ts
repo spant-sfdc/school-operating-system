@@ -47,3 +47,11 @@ export function canViewAuditLog(subject: AuthorizationSubject): boolean {
 export function canManageConfiguration(subject: AuthorizationSubject): boolean {
   return subject.accessLevel === "ADMIN";
 }
+
+// Import Engine (Sprint D1, Epic D) — bulk data mutation at deployment
+// scale is at least as sensitive as any single User Management action;
+// Admin-only, same reasoning as every other administrative capability
+// above.
+export function canManageImports(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN";
+}

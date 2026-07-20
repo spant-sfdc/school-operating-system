@@ -12,6 +12,31 @@ Nothing yet.
 
 ---
 
+## [0.29.0] — 2026-07-20 — Sprint D1: Import Engine Architecture & Foundation
+
+The architectural foundation for Epic D's Import Engine — reusable infrastructure only, no entity-specific importer built. See [D-043](./DECISIONS.md#d-043--sprint-d1-import-engine-architecture--foundation-two-new-tables-importbatchimportrow-each-independently-justified-chunked-commit-is-one-transaction-per-row-not-per-chunk-matching-transaction_boundariesmd--4s-rollover-precedent-entity-agnostic-extension-points-only--no-real-importer-built).
+
+### Added
+
+- `prisma/migrations/20260720152241_import_engine_foundation/` — Migration 010: `ImportBatch`, `ImportRow` (+`ImportEntityType`/`ImportFileFormat`/`ImportStatus`/`ImportRowStatus` enums). Two tables, each independently justified — no `ImportError` table (validation errors are a JSON column on `ImportRow`).
+- `src/repositories/importBatch/`, `src/repositories/importRow/` — data access, including `findNextChunkToCommit()` (the resumability query) and `countImportRowsByStatus()` (the report/progress query).
+- `src/services/import/` — `createImportBatch()`, `ingestImportRows()`, `validateImportBatch()`, `previewImportBatch()`, `skipInvalidRows()`, `commitImportBatchChunk()`, `getImportReport()`, `listImportBatches()`, `getImportBatchDetail()` — the full Upload → Detect → Map → Validate → Preview → Commit → Audit → History → Report orchestration, entity-agnostic throughout.
+- `src/services/import/extension-points.ts` — `ImportRowValidator`/`ImportRowCommitHandler` (the contracts a future `StudentImporter`/`TeacherImporter`/`AttendanceImporter` implements) and `suggestColumnMappings()` (naive exact-match column detection — not AI).
+- `src/app/admin/imports/` — a minimal History list page, `src/lib/authorization/permissions.ts` (+`canManageImports()`).
+
+### Architecture Review
+
+- Business Workflow Review ("a school has given us 12 Excel files") mapped the real answer before any code: 12 files = 12 (or more) separate `ImportBatch` runs, sequenced by the Admin respecting real dependencies (Academic Structure before Students/Teachers), each walking the identical lifecycle.
+- Transaction Review against `TRANSACTION_BOUNDARIES.md § 4`'s Academic Year Rollover precedent: `commitImportBatchChunk()` commits **one row per transaction**, not one chunk per transaction — a bad row's failure never rolls back its already-committed neighbors. Verified live, not assumed.
+- Validation Strategy: File / Column / Business / Database validation named and separated — this sprint builds only the Business Validation contract (`ImportRowValidator`); the other three remain a future entity-specific importer's own concern.
+
+### Verified
+
+- Live scratch-script run through the complete lifecycle: batch created → 4 rows ingested → validated (1 correctly flagged invalid) → previewed (correct counts + grouped error summary) → invalid row skipped → committed in two chunks of 2 (proving both chunking and resumability — chunk 2 processed only the 1 remaining row) → one row deliberately failed its commit, confirmed isolated (the other 2 stayed `COMMITTED`) → batch settled `PARTIALLY_COMPLETED` with correct counts → History list/detail both correct → 5 `AuditLog` entries confirmed across the lifecycle, reusing the existing `writeAuditLog()` mechanism. All test data removed afterward via a scratch-script-only cleanup, not an application feature.
+- `pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run build` all pass clean; `prisma validate`/`migrate status` confirm schema and migrations consistent.
+
+---
+
 ## [0.28.0] — 2026-07-20 — Sprint C2: Client Onboarding Certification
 
 Certified the framework against its own stated bar — "a completely new TechPulse engineer can onboard a school without asking another engineer a single question" — via a live Business Workflow Review and dry run, not code review alone. See [D-042](./DECISIONS.md#d-042--sprint-c2-client-onboarding-certification-readmemd-quick-start-was-genuinely-onboarding-blocking-missing-migrateseedlogin-steps-prismaseedts-gains-a-seed_dev_fixtures-flag-closing-a-real-client-deployment-gap-live-dry-run-performed-against-a-temporarily-reset-deployment-state).

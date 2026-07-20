@@ -142,7 +142,8 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   ├── authorization/            # Built, Sprint B2, D-036 — the one canonical place a permission question is answered
 │   │   │   ├── permissions.ts           # canManageUsers()/canManageTeachers()/canResetPasswords()/
 │   │   │   │                              # canDeactivateUsers()/canManageSystemSetup()/canViewAuditLog()/
-│   │   │   │                              # canManageConfiguration() (latter three, D-039/D-040/D-041)
+│   │   │   │                              # canManageConfiguration()/canManageImports() (latter four,
+│   │   │   │                              # D-039/D-040/D-041/D-043)
 │   │   │   ├── guard.ts                 # requireSession()/requirePermission() — auth() + redirect(), called once per
 │   │   │   │                              # Server Action; services trust the resulting actorUserId, never re-check
 │   │   │   ├── redirect.ts              # resolvePostLoginRedirect(), CHANGE_PASSWORD_PATH/ADMIN_HOME_PATH/
@@ -166,7 +167,9 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   │   │                              # changeOwnPassword/searchUsers input schemas — see D-036
 │   │   │   ├── setup.ts                # updateSchoolDetails input schema — see D-039
 │   │   │   ├── audit.ts                # searchAuditEvents input schema — see D-040
-│   │   │   └── configuration.ts        # updateSchoolConfiguration input schema — see D-041
+│   │   │   ├── configuration.ts        # updateSchoolConfiguration input schema — see D-041
+│   │   │   └── import.ts               # createImportBatch/ingestImportRows/searchImportBatches input
+│   │   │                                  # schemas — see D-043
 │   │   └── utils.ts                 # cn() and other shared helpers
 │   ├── config/                      # Centralized site config — see DECISIONS.md § D-018
 │   │   ├── school.ts                  # Canonical identity facts (name, location, contact, principal, etc.)
@@ -205,11 +208,17 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   │                                 # upsertAttendanceRecord — see D-033
 │   │   ├── frameworkConfig/           # Built, Sprint B3, D-039 — findFrameworkConfig(), createFrameworkConfig(),
 │   │   │                                 # updateFrameworkConfig() — a singleton row, "first row" is always correct
-│   │   └── auditLog/                  # Built, Sprint B4, D-040 — createAuditLog() (the write, moved here from
-│   │                                     # lib/db-utils.ts's writeAuditLog(), which now just delegates — closes a
-│   │                                     # real, long-tolerated exception to "no direct Prisma outside
-│   │                                     # repositories"), findAuditLogById(), searchAuditLogs(),
-│   │                                     # listDistinctEntityTypes(), countAuditLogs()
+│   │   ├── auditLog/                  # Built, Sprint B4, D-040 — createAuditLog() (the write, moved here from
+│   │   │                                 # lib/db-utils.ts's writeAuditLog(), which now just delegates — closes a
+│   │   │                                 # real, long-tolerated exception to "no direct Prisma outside
+│   │   │                                 # repositories"), findAuditLogById(), searchAuditLogs(),
+│   │   │                                 # listDistinctEntityTypes(), countAuditLogs()
+│   │   ├── importBatch/               # Built, Sprint D1, D-043 — createImportBatch(), findImportBatchById(),
+│   │   │                                 # updateImportBatch(), searchImportBatches(), findMostRecentBatchByFileHash(),
+│   │   │                                 # findMostRecentBatchByType()
+│   │   └── importRow/                 # Built, Sprint D1, D-043 — createImportRows() (bulk), findImportRowsByBatchId(),
+│   │                                     # findNextChunkToCommit() (the resumability query), updateImportRow(),
+│   │                                     # updateImportRowsStatus() (bulk), countImportRowsByStatus()
 │   └── services/                    # Business-logic layer, composed from repositories — see D-028/D-030/D-031/D-032/D-033
 │       ├── identity/                  # createIdentityUser() — validated create + role lookup + transactional AuditLog write
 │       ├── academic/                  # createSchoolClassWithSections(), createAcademicSubject()
@@ -241,12 +250,22 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │       │                                 # everything" and any filtered combination — no separate
 │       │                                 # listAuditEvents()), getAuditEvent(), listEntityTypeOptions() — dto/
 │       │                                 # subfolder (auditEvent.dto.ts, redacts by an exact-match denylist)
-│       └── configuration/             # Built, Sprint C1, D-041 (Epic C — separate from Epic B's system/,
-│                                         # frozen; calls the same School/AcademicYear repositories directly)
-│                                         # — getSchoolConfiguration(), updateSchoolConfiguration(),
-│                                         # getConfigurationSummary() — dto/ subfolder (schoolConfiguration.dto.ts,
-│                                         # configurationStatus.dto.ts — reuses the bracketed-placeholder
-│                                         # convention and TEXT_REGISTRY.md's own P0/P1/P2 priorities)
+│       ├── configuration/             # Built, Sprint C1, D-041 (Epic C — separate from Epic B's system/,
+│       │                                 # frozen; calls the same School/AcademicYear repositories directly)
+│       │                                 # — getSchoolConfiguration(), updateSchoolConfiguration(),
+│       │                                 # getConfigurationSummary() — dto/ subfolder (schoolConfiguration.dto.ts,
+│       │                                 # configurationStatus.dto.ts — reuses the bracketed-placeholder
+│       │                                 # convention and TEXT_REGISTRY.md's own P0/P1/P2 priorities)
+│       └── import/                    # Built, Sprint D1, D-043 (Epic D, foundation only) — entity-agnostic
+│                                         # orchestration: createImportBatch(), ingestImportRows(),
+│                                         # validateImportBatch(), previewImportBatch(), skipInvalidRows(),
+│                                         # commitImportBatchChunk() (resumable, one transaction per row not per
+│                                         # chunk — TRANSACTION_BOUNDARIES.md § 4's Rollover precedent),
+│                                         # getImportReport(), listImportBatches(), getImportBatchDetail() —
+│                                         # dto/ subfolder (importBatch.dto.ts, importRow.dto.ts,
+│                                         # importReport.dto.ts), extension-points.ts (ImportRowValidator,
+│                                         # ImportRowCommitHandler, suggestColumnMappings() — no real
+│                                         # entity-specific implementation exists yet)
 ├── prisma/
 │   ├── schema.prisma                # AuditLog, School, AcademicYear, Role, User (+mustChangePassword, D-036),
 │   │                                   # Account, Session, VerificationToken, SchoolClass, Section, Subject, Student,
@@ -254,7 +273,9 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │                                   # TeacherAssignment, AttendanceSession, AttendanceRecord, FrameworkConfig,
 │   │                                   # School extended with tagline/medium/principalName/principalTitle/
 │   │                                   # email/phone/address/schoolTimings/officeTimings/logoUrl/faviconUrl
-│   │                                   # (Migration 009, D-041) (Migrations 000-009)
+│   │                                   # (Migration 009, D-041), ImportBatch, ImportRow (Migration 010, D-043,
+│   │                                   # historical-fact category — no delete mechanism, per
+│   │                                   # SOFT_DELETE_STRATEGY.md § 1) (Migrations 000-010)
 │   ├── seed.ts                       # Seeds School + AcademicYear + 3 Roles (always) + 1 Bootstrap Administrator
 │   │                                   # (idempotent, DEFAULT_BOOTSTRAP_ADMIN_* constants, mustChangePassword: true,
 │   │                                   # always) + 11 SchoolClasses (Nursery-8, sections A/B) + 10 generic Subjects +

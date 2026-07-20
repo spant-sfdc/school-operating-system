@@ -128,6 +128,7 @@ model School {
   subjects           Subject[]
   teachers           Teacher[]
   attendanceSessions AttendanceSession[]
+  importBatches      ImportBatch[]
 
   @@map("schools")
 }
@@ -741,4 +742,158 @@ model FrameworkConfig {
   updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("framework_config")
+}
+
+// --- Migration 010: Import Engine Foundation --------------------------------
+// Sprint D1 — Import Engine Architecture & Foundation. Two tables, each
+// independently justified (docs/database/ README's own "every table must
+// justify its existence" discipline, applied here):
+//
+// ImportBatch — the one row per import run, the provenance record
+// IMPORT_ENGINE_STRATEGY.md § 2.6 requires to answer "show me everything
+// that came from the March 2027 migration" — a question AuditLog alone
+// can't answer efficiently, since it isn't grouped by import run.
+//
+// ImportRow — genuinely required, not a convenience table: without
+// per-row state, a chunked commit (TRANSACTION_BOUNDARIES.md § 4's own
+// "large batch, not a 40-row submission" pattern) has no way to resume
+// after an interruption except recomputing from the raw file every time,
+// defeating resumability's purpose. Also carries row-level validation
+// errors, per IMPORT_ENGINE_STRATEGY.md § 4's "row number, specific
+// field, plain-language reason" requirement — deliberately a JSON array
+// column on ImportRow, not a third ImportError table: nothing in this
+// sprint's scope needs to query errors independently across batches, so a
+// separate table would be schema weight with no present justification
+// (re-evaluate only if that need becomes real).
+//
+// Both follow SOFT_DELETE_STRATEGY.md § 1's third category —
+// "historical fact/measurement, no delete mechanism at all" — the same
+// category as AttendanceSession/AttendanceRecord/AuditLog: an import run,
+// once it happened, isn't deleted; it's a permanent record of what was
+// attempted and what resulted. ImportRow uses a time-ordered UUIDv7 PK
+// (DATABASE_REVIEW.md § 11's precedent for high-insert-volume tables,
+// matching AuditLog/AttendanceRecord) since a single large import can
+// genuinely produce thousands of rows; ImportBatch uses cuid() (low
+// volume — one row per import run, matching AttendanceSession/
+// FrameworkConfig's precedent).
+
+enum ImportEntityType {
+  STUDENT
+  TEACHER
+  GUARDIAN
+  SCHOOL_CLASS
+  SECTION
+  SUBJECT
+  ATTENDANCE
+  ADMISSION
+  RESULT
+  FEE
+  TRANSPORT
+
+  @@map("import_entity_type")
+}
+
+enum ImportFileFormat {
+  CSV
+  XLSX
+  ODS
+
+  @@map("import_file_format")
+}
+
+// Covers Upload through Commit's possible terminal states — Audit/History/
+// Report (the task's own extended lifecycle beyond IMPORT_ENGINE_STRATEGY.md's
+// original five stages) are cross-cutting reads/writes over this status, not
+// additional statuses themselves: Audit happens continuously (every
+// committed row's AuditLog entry, via the reused lifecycle service, plus
+// this table's own lifecycle-transition AuditLog entries); History and
+// Report are query views over a batch regardless of its current status.
+enum ImportStatus {
+  UPLOADED
+  DETECTED
+  MAPPED
+  VALIDATED
+  PREVIEWED
+  COMMITTING
+  COMPLETED
+  FAILED
+  PARTIALLY_COMPLETED
+
+  @@map("import_status")
+}
+
+enum ImportRowStatus {
+  PENDING
+  VALID
+  INVALID
+  SKIPPED
+  COMMITTED
+  FAILED
+
+  @@map("import_row_status")
+}
+
+model ImportBatch {
+  id              String           @id @default(cuid())
+  schoolId        String           @map("school_id")
+  school          School           @relation(fields: [schoolId], references: [schoolId])
+  importType      ImportEntityType @map("import_type")
+  status          ImportStatus     @default(UPLOADED)
+  sourceFileName  String           @map("source_file_name")
+  sourceFileType  ImportFileFormat @map("source_file_type")
+  // SHA-256 of the uploaded file's own bytes, computed at Detect — not
+  // unique (a school may legitimately re-upload a corrected file, or the
+  // exact same file twice on purpose), just indexed so a future Upload UI
+  // can warn "this file was already imported on <date>" per this sprint's
+  // own Security Review "duplicate imports" requirement.
+  sourceFileHash  String?          @map("source_file_hash")
+  // Source column name -> target entity field name, e.g.
+  // {"Student Name": "firstName", "DOB": "dateOfBirth"}. Saved per batch so
+  // a corrected re-upload of the same entity type doesn't require
+  // re-mapping (IMPORT_ENGINE_STRATEGY.md § 2.2's "saved mapping" note) —
+  // a future importer reads the most recent batch of the same
+  // (schoolId, importType) to pre-fill this as a suggestion, not build a
+  // separate mapping-template table this sprint doesn't yet need.
+  columnMapping   Json?            @map("column_mapping")
+  totalRows       Int?             @map("total_rows")
+  successCount    Int              @default(0) @map("success_count")
+  errorCount      Int              @default(0) @map("error_count")
+  skippedCount    Int              @default(0) @map("skipped_count")
+  createdByUserId String           @map("created_by_user_id")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  completedAt     DateTime?        @map("completed_at") @db.Timestamptz(3)
+
+  rows ImportRow[]
+
+  @@index([schoolId, importType, createdAt])
+  @@index([schoolId, sourceFileHash])
+  @@map("import_batches")
+}
+
+model ImportRow {
+  id               String          @id @default(uuid(7))
+  importBatchId    String          @map("import_batch_id")
+  importBatch      ImportBatch     @relation(fields: [importBatchId], references: [id])
+  rowNumber        Int             @map("row_number")
+  // The mapped-but-unvalidated row, keyed by target field name (already
+  // translated via ImportBatch.columnMapping) — so Validate/Preview/Commit
+  // never need to re-open or re-parse the source file.
+  rawData          Json            @map("raw_data")
+  status           ImportRowStatus @default(PENDING)
+  // Array of { field, message } — row-level, plain-language, per
+  // IMPORT_ENGINE_STRATEGY.md § 4. Null until Validate has run.
+  validationErrors Json?           @map("validation_errors")
+  // The Student/Teacher/etc. id this row produced once committed — the
+  // traceability link a future "undo this import" correction procedure
+  // (IMPORT_ENGINE_STRATEGY.md § 3's named, honest non-universal-rollback
+  // boundary) would need, without this sprint building that procedure.
+  entityId         String?         @map("entity_id")
+  committedAt      DateTime?       @map("committed_at") @db.Timestamptz(3)
+
+  // The resumability query this table exists for: "give me the next chunk
+  // of this batch's still-uncommitted valid rows" — see
+  // TRANSACTION_BOUNDARIES.md § 4's own "progress-tracking record" pattern.
+  @@index([importBatchId, status, rowNumber])
+  @@map("import_rows")
 }

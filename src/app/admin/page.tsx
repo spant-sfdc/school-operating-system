@@ -77,6 +77,11 @@ export default async function AdminHomePage() {
             Configuration
           </Button>
         </Link>
+        <Link href="/admin/imports">
+          <Button type="button" variant="outline">
+            Import History
+          </Button>
+        </Link>
       </div>
     </main>
   );
