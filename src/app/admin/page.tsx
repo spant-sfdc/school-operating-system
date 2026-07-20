@@ -72,6 +72,11 @@ export default async function AdminHomePage() {
             Audit Log
           </Button>
         </Link>
+        <Link href="/admin/configuration">
+          <Button type="button" variant="outline">
+            Configuration
+          </Button>
+        </Link>
       </div>
     </main>
   );

@@ -95,6 +95,27 @@ model School {
   affiliationBoard String?      @map("affiliation_board")
   udiseCode        String?      @unique @map("udise_code")
   status           SchoolStatus @default(ACTIVE)
+  // Sprint C1 (Migration 009) — additive School Identity fields the new
+  // /admin/configuration module manages. These make School the single,
+  // database-backed source of truth for Admin-facing surfaces (Setup
+  // Wizard, Configuration Module, Admin Home, Audit Log) — src/config/
+  // school.ts/contact.ts remain the separate, static source the public
+  // website reads at render time (no live database-driven public-site
+  // rendering exists yet, and building that is out of this sprint's own
+  // scope). The two are not currently kept in sync automatically — see
+  // docs/DECISIONS.md's Sprint C1 entry for why this is named as an
+  // honest, not-yet-closed gap rather than silently papered over.
+  tagline          String?      @map("tagline")
+  medium           String?      @map("medium")
+  principalName    String?      @map("principal_name")
+  principalTitle   String?      @map("principal_title")
+  email            String?      @map("email")
+  phone            String?      @map("phone")
+  address          String?      @map("address")
+  schoolTimings    String?      @map("school_timings")
+  officeTimings    String?      @map("office_timings")
+  logoUrl          String?      @map("logo_url")
+  faviconUrl       String?      @map("favicon_url")
   createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -709,15 +730,15 @@ model AttendanceRecord {
 // comment): a deleted/deactivated actor must not corrupt this record's
 // history. See docs/DECISIONS.md's Sprint B3 entry (D-039).
 model FrameworkConfig {
-  id                String    @id @default(cuid())
-  frameworkVersion  String    @map("framework_version")
-  databaseVersion   String?   @map("database_version")
-  migrationVersion  String?   @map("migration_version")
-  setupCompleted    Boolean   @default(false) @map("setup_completed")
-  setupCompletedAt  DateTime? @map("setup_completed_at") @db.Timestamptz(3)
-  setupCompletedBy  String?   @map("setup_completed_by")
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id               String    @id @default(cuid())
+  frameworkVersion String    @map("framework_version")
+  databaseVersion  String?   @map("database_version")
+  migrationVersion String?   @map("migration_version")
+  setupCompleted   Boolean   @default(false) @map("setup_completed")
+  setupCompletedAt DateTime? @map("setup_completed_at") @db.Timestamptz(3)
+  setupCompletedBy String?   @map("setup_completed_by")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("framework_config")
 }

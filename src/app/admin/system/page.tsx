@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requirePermission, canManageSystemSetup } from "@/lib/authorization";
 import { checkSystemReadiness, getFrameworkConfig } from "@/services/system";
 import { countAuditLogs } from "@/repositories/auditLog";
+import { getConfigurationSummary } from "@/services/configuration";
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
@@ -16,10 +17,11 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 export default async function DeveloperInformationPage() {
   const session = await requirePermission(canManageSystemSetup);
 
-  const [readiness, frameworkConfig, auditLogCount] = await Promise.all([
+  const [readiness, frameworkConfig, auditLogCount, configSummary] = await Promise.all([
     checkSystemReadiness(),
     getFrameworkConfig(),
     countAuditLogs(session.schoolId),
+    getConfigurationSummary(),
   ]);
 
   return (
@@ -105,6 +107,26 @@ export default async function DeveloperInformationPage() {
         <p className="mt-2 text-sm">
           <Link href="/admin/audit" className="text-primary underline">
             View Audit Log →
+          </Link>
+        </p>
+      </section>
+
+      <section className="mt-8">
+        <h2 className="mb-3 text-lg font-semibold">Configuration</h2>
+        <dl className="rounded-md border p-4">
+          <InfoRow
+            label="Configuration Completion"
+            value={`${configSummary.completionPercent}% (${configSummary.configuredCount}/${configSummary.totalFields})`}
+          />
+          <InfoRow label="Placeholder Count" value={String(configSummary.placeholderCount)} />
+          <InfoRow
+            label="Content Readiness"
+            value="97 items tracked, 0 published — see docs/onboarding/CONTENT_DASHBOARD.md"
+          />
+        </dl>
+        <p className="mt-2 text-sm">
+          <Link href="/admin/configuration" className="text-primary underline">
+            View Configuration →
           </Link>
         </p>
       </section>

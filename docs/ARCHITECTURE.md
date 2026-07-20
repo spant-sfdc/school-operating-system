@@ -73,11 +73,17 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   │   │   │                        # reachable after completion, not gated once setup is done
 │   │   │   │   ├── page.tsx
 │   │   │   │   └── actions.ts
-│   │   │   ├── system/                # Built, Sprint B3, extended B4 — Developer Information: live
+│   │   │   ├── system/                # Built, Sprint B3, extended B4/C1 — Developer Information: live
 │   │   │   │   └── page.tsx             # checkSystemReadiness() + FrameworkConfig snapshot + Audit Log count
+│   │   │   │                             # + Configuration Completion/Placeholder Count/Content Readiness
 │   │   │   ├── audit/                 # Built, Sprint B4, D-040 — Audit Log Viewer, Admin-only, GET-based filters
 │   │   │   │   ├── page.tsx             # List — Date/Action/Entity Type/Actor/Search, pagination
 │   │   │   │   └── [id]/page.tsx        # Detail — Before/After Value, redacted by an exact-match denylist
+│   │   │   ├── configuration/         # Built, Sprint C1, D-041 — Client Configuration Module, Admin-only;
+│   │   │   │   │                        # School Identity + Academic fields editable (School/AcademicYear,
+│   │   │   │   │                        # Migration 009); Theme/Website/Social shown read-only
+│   │   │   │   ├── page.tsx
+│   │   │   │   └── actions.ts
 │   │   │   ├── users/                 # Built, Sprint B2, D-036 — User Management (Admin/Teacher accounts only;
 │   │   │   │   │                        # Student/Guardian management explicitly out of scope)
 │   │   │   │   ├── page.tsx             # List — search/filter/pagination
@@ -135,8 +141,8 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   │                                  # (CSPRNG via node:crypto randomInt, ambiguous-character-free) — D-035/D-036
 │   │   ├── authorization/            # Built, Sprint B2, D-036 — the one canonical place a permission question is answered
 │   │   │   ├── permissions.ts           # canManageUsers()/canManageTeachers()/canResetPasswords()/
-│   │   │   │                              # canDeactivateUsers()/canManageSystemSetup()/canViewAuditLog()
-│   │   │   │                              # (latter two, D-039/D-040)
+│   │   │   │                              # canDeactivateUsers()/canManageSystemSetup()/canViewAuditLog()/
+│   │   │   │                              # canManageConfiguration() (latter three, D-039/D-040/D-041)
 │   │   │   ├── guard.ts                 # requireSession()/requirePermission() — auth() + redirect(), called once per
 │   │   │   │                              # Server Action; services trust the resulting actorUserId, never re-check
 │   │   │   ├── redirect.ts              # resolvePostLoginRedirect(), CHANGE_PASSWORD_PATH/ADMIN_HOME_PATH/
@@ -158,7 +164,9 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │   │   │   ├── auth.ts                 # Login input schema — see D-035
 │   │   │   ├── administration.ts       # createUserAccount/editUserAccount/deactivate/activate/resetPassword/
 │   │   │   │                              # changeOwnPassword/searchUsers input schemas — see D-036
-│   │   │   └── setup.ts                # updateSchoolDetails input schema — see D-039
+│   │   │   ├── setup.ts                # updateSchoolDetails input schema — see D-039
+│   │   │   ├── audit.ts                # searchAuditEvents input schema — see D-040
+│   │   │   └── configuration.ts        # updateSchoolConfiguration input schema — see D-041
 │   │   └── utils.ts                 # cn() and other shared helpers
 │   ├── config/                      # Centralized site config — see DECISIONS.md § D-018
 │   │   ├── school.ts                  # Canonical identity facts (name, location, contact, principal, etc.)
@@ -229,16 +237,24 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │                                         # (reuses administration's own UserAccountDTO), getFrameworkConfig(),
 │                                         # isSetupComplete(), completeSetup() — dto/ subfolder
 │                                         # (systemReadiness.dto.ts, frameworkConfig.dto.ts, schoolDetails.dto.ts)
-│       └── audit/                     # Built, Sprint B4, D-040 — searchAuditEvents() (covers both "browse
-│                                         # everything" and any filtered combination — no separate
-│                                         # listAuditEvents()), getAuditEvent(), listEntityTypeOptions() — dto/
-│                                         # subfolder (auditEvent.dto.ts, redacts by an exact-match denylist)
+│       ├── audit/                     # Built, Sprint B4, D-040 — searchAuditEvents() (covers both "browse
+│       │                                 # everything" and any filtered combination — no separate
+│       │                                 # listAuditEvents()), getAuditEvent(), listEntityTypeOptions() — dto/
+│       │                                 # subfolder (auditEvent.dto.ts, redacts by an exact-match denylist)
+│       └── configuration/             # Built, Sprint C1, D-041 (Epic C — separate from Epic B's system/,
+│                                         # frozen; calls the same School/AcademicYear repositories directly)
+│                                         # — getSchoolConfiguration(), updateSchoolConfiguration(),
+│                                         # getConfigurationSummary() — dto/ subfolder (schoolConfiguration.dto.ts,
+│                                         # configurationStatus.dto.ts — reuses the bracketed-placeholder
+│                                         # convention and TEXT_REGISTRY.md's own P0/P1/P2 priorities)
 ├── prisma/
 │   ├── schema.prisma                # AuditLog, School, AcademicYear, Role, User (+mustChangePassword, D-036),
 │   │                                   # Account, Session, VerificationToken, SchoolClass, Section, Subject, Student,
 │   │                                   # Guardian, StudentGuardian, Enrollment, Teacher, TeacherQualification,
-│   │                                   # TeacherAssignment, AttendanceSession, AttendanceRecord, FrameworkConfig
-│   │                                   # (Migrations 000-008)
+│   │                                   # TeacherAssignment, AttendanceSession, AttendanceRecord, FrameworkConfig,
+│   │                                   # School extended with tagline/medium/principalName/principalTitle/
+│   │                                   # email/phone/address/schoolTimings/officeTimings/logoUrl/faviconUrl
+│   │                                   # (Migration 009, D-041) (Migrations 000-009)
 │   ├── seed.ts                       # Seeds School + AcademicYear + 3 Roles + 11 SchoolClasses (Nursery-8, sections A/B)
 │   │                                   # + 10 generic Subjects + 3 Guardians + 5 Students, enrolled + 3 Teachers with
 │   │                                   # qualifications/assignments + 1 AttendanceSession with 2 AttendanceRecords +
@@ -255,7 +271,8 @@ Application code is nested under `src/`; `prisma/`, `public/`, `docs/`, and root
 │       ├── 20260718192844_teacher_foundation/
 │       ├── 20260718201440_attendance_foundation/
 │       ├── 20260719045852_administration_foundation/  # User.mustChangePassword — see D-036
-│       └── 20260719120000_framework_configuration/    # FrameworkConfig — see D-039
+│       ├── 20260719120000_framework_configuration/    # FrameworkConfig — see D-039
+│       └── 20260720090000_client_configuration_foundation/  # School extended — see D-041
 ├── docs/                            # This documentation set (docs/engineering/ — cross-cutting engineering rules, see D-032)
 └── public/                          # Static assets (favicon, static images)
 ```

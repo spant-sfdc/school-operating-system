@@ -40,3 +40,10 @@ export function canManageSystemSetup(subject: AuthorizationSubject): boolean {
 export function canViewAuditLog(subject: AuthorizationSubject): boolean {
   return subject.accessLevel === "ADMIN";
 }
+
+// Client Configuration Framework (Sprint C1, Epic C) — School Identity is
+// the same class of sensitive, deployment-wide fact as System Setup
+// (D-039); Admin-only, same reasoning.
+export function canManageConfiguration(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN";
+}

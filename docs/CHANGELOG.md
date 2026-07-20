@@ -12,6 +12,39 @@ Nothing yet.
 
 ---
 
+## [0.27.0] — 2026-07-20 — Sprint C1: Branding & Configuration Framework
+
+The Client Configuration Framework — the foundation every future school onboarding will use. Epic B remains frozen (only reused at the repository layer, not modified). See [D-041](./DECISIONS.md#d-041--sprint-c1-client-configuration-framework-school-db-extended-as-the-admin-facing-source-of-truth-srcconfigschoolts-remains-the-separate-public-website-source-named-divergence-not-closed-this-sprint-branding-color-boundary-reaffirmed-as-deliberate).
+
+### Added
+
+- `prisma/migrations/20260720090000_client_configuration_foundation/` — Migration 009: `School` extended with 11 nullable columns (`tagline`, `medium`, `principalName`, `principalTitle`, `email`, `phone`, `address`, `schoolTimings`, `officeTimings`, `logoUrl`, `faviconUrl`) — purely additive, no new table.
+- `src/services/configuration/` — `getSchoolConfiguration()`, `updateSchoolConfiguration()`, `getConfigurationSummary()`. A new, separate Epic C service — calls `School`/`AcademicYear` repositories directly, never Epic B's own `system`/`administration` services.
+- `src/app/admin/configuration/` — the Configuration Module: School Identity + Academic fields (editable), Theme/Website/Social (read-only status, each with a note pointing to the `src/config/*.ts` file to edit), System (reused from `checkSystemReadiness()`/`getFrameworkConfig()`).
+- `src/lib/validations/configuration.ts`, `src/lib/authorization/permissions.ts` (+`canManageConfiguration()`).
+
+### Changed
+
+- `src/app/admin/page.tsx` — added a "Configuration" Quick Action.
+- `src/app/admin/system/page.tsx` — added Configuration Completion, Placeholder Count, and a Content Readiness pointer to `docs/onboarding/CONTENT_DASHBOARD.md`.
+
+### Architecture Review
+
+- `src/config/` classified in full: Framework-owned (`navigation.ts` entirely; `branding.ts`'s theme structure and color _tokens_, not values), Client-owned (`school.ts`, `contact.ts`, `social.ts`, most of `seo.ts`), Runtime-owned (`seo.ts`'s `siteUrl`, from `NEXT_PUBLIC_APP_URL`). Confirmed zero "Daily School Data" currently lives in `src/config/`.
+- **Named, not closed:** `School` (DB, Admin-editable since Sprint B3) and `SCHOOL` (`src/config/school.ts`, static, public-website-facing) are two sources for overlapping facts that are not kept in sync. Closing this would mean moving the public website to database-driven rendering — a genuine redesign, out of this sprint's explicit scope. Documented as real future work, not silently papered over.
+- **Branding Review:** logo/favicon are now genuinely client-configurable (a URL field — no file-upload system built, staying clear of Import-Engine-adjacent scope). The primary brand color's code-only boundary (`src/app/globals.css`) was reviewed and reaffirmed as deliberate, per `CONFIGURATION_GUIDE.md § 1`'s own existing reasoning — not a gap.
+
+### Framework Health Review
+
+- One hardcoded "Pant Public School" string found outside `src/config/`/page `content.ts` files — in `src/app/dev/playground/page.tsx`, a dev-only route that 404s in production. Not fixed — sample data for a component showcase, zero production impact.
+- `configuration.service.ts` structurally duplicates `system.service.ts`'s `getSchoolDetails()`/`updateSchoolDetails()` pattern (Sprint B3) — not consolidated, since Epic B is frozen and the two serve genuinely different callers.
+
+### Verified
+
+End to end against a live, freshly built production server: bootstrap login → `/admin` shows the new Configuration Quick Action → `/admin/configuration` loads, correctly shows 5/18 fields configured against the live database (including `affiliationBoard: "CBSE"`, already set via Sprint B3's own Setup Wizard, confirming cross-sprint data consistency) → submitted real values for every editable field → 16/18 configured, 0 needing attention → change appears correctly in `/admin/audit` (`entityType: "SchoolConfiguration"`) → `/admin/system` shows the new Configuration section → public homepage/`/about`/`/contact` unaffected, still rendering `src/config/school.ts`'s own values → Teacher session denied `/admin/configuration` (307) → `/admin/users`, `/admin/setup`, `/admin/audit` regression-checked unaffected.
+
+---
+
 ## [0.26.0] — 2026-07-20 — Sprint B4: Audit Log Viewer & Administration Freeze
 
 The Audit Log Viewer — the last item in Epic B's own Full slice — plus an Administration Architecture Review, a Bootstrap Administrator review, and a Security Review. **Epic B (Administration) is now declared complete.** See [D-040](./DECISIONS.md#d-040--sprint-b4-audit-log-viewer--administration-freeze-writeauditlog-now-delegates-to-a-real-repository-closing-a-sprint-0-era-exception-exact-match-redaction-denylist-replaces-a-substring-match-that-redacted-its-own-safe-audit-flags-epic-b-declared-complete).
