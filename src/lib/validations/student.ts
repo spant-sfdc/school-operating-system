@@ -49,3 +49,19 @@ export const enrollStudentInputSchema = z.object({
   rollNumber: z.string().min(1).max(10),
 });
 export type EnrollStudentInput = z.infer<typeof enrollStudentInputSchema>;
+
+// The Student Directory's own GET-based search form (Sprint E1) — every
+// field optional since an empty search is a valid "show everyone" state;
+// coerced from URLSearchParams strings, per DEVELOPMENT_CONVENTIONS.md § 8
+// ("validate all external input... before it touches business logic").
+export const studentSearchInputSchema = z.object({
+  query: z.string().max(120).optional(),
+  status: z.enum(["ACTIVE", "ALUMNI", "TRANSFERRED_OUT", "WITHDRAWN", "ALL"]).optional(),
+  schoolClassId: z.string().min(1).optional(),
+  sectionId: z.string().min(1).optional(),
+  academicYearId: z.string().min(1).optional(),
+  sortBy: z.enum(["name", "admissionNumber", "status"]).optional(),
+  sortDir: z.enum(["asc", "desc"]).optional(),
+  page: z.coerce.number().int().min(1).optional(),
+});
+export type StudentSearchInput = z.infer<typeof studentSearchInputSchema>;

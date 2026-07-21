@@ -57,6 +57,11 @@ export default async function AdminHomePage() {
             Manage Users
           </Button>
         </Link>
+        <Link href="/admin/students">
+          <Button type="button" variant="outline">
+            Students
+          </Button>
+        </Link>
         <Link href="/admin/setup">
           <Button type="button" variant="outline">
             System Setup

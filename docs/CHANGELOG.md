@@ -12,6 +12,32 @@ Nothing yet.
 
 ---
 
+## [0.34.0] — 2026-07-21 — Sprint E1: Student Workspace ("Student 360")
+
+The first real, user-facing Student capability — a Directory to find a student fast, a Profile ("Student 360") to see everything about them in one place. See [D-048](./DECISIONS.md#d-048--sprint-e1-student-workspace-student-360-first-real-student-facing-capability--directory-searchfiltersortpagination--profile-read-composition-workspace-zero-new-tables-zero-frozen-architecture-changes-verified-live-via-a-minted-session-against-real-seeded-data).
+
+### Added
+
+- `src/repositories/student/student.repository.ts` — `searchStudents()`, spanning Student/Guardian (via StudentGuardian)/Enrollment in one query; mirrors `searchUsers()`/`searchAuditLogs()`'s own filter/pagination shape.
+- `src/repositories/attendanceRecord/attendanceRecord.repository.ts` — `countAttendanceByEnrollment()`, a `groupBy` aggregate for the Attendance Summary.
+- `src/repositories/academicYear/academicYear.repository.ts` — `listAcademicYearsBySchool()`, for the Directory's Academic Year filter.
+- `src/lib/authorization/permissions.ts` — `canViewStudents()`, `canManageStudents()`, `canTransferStudents()`, `canDeactivateStudents()`.
+- `src/lib/validations/student.ts` — `studentSearchInputSchema`, validating the Directory's GET-based search params.
+- `src/lib/format.ts` — `formatEnumLabel()`, shared `UPPER_SNAKE_CASE` → `Title Case` display formatting.
+- `src/services/student/studentDirectory.{service,dto}.ts` — `searchStudentDirectory()`, a read-composition service resolving the display academic year (explicit filter or current year) before delegating to the repository.
+- `src/services/student/studentWorkspace.{service,dto}.ts` — `getStudentWorkspace()`, composing Identity, Current Enrollment, Guardian Summary, Attendance Summary, and honest placeholder states for Academic Snapshot/Recent Activity/Documents (their underlying entities don't exist yet) into one DTO. No new database table.
+- `src/app/admin/students/page.tsx` — the Directory: search, Status/Class/Section/Academic Year filters, sort, pagination.
+- `src/app/admin/students/[id]/page.tsx` — the Profile: renders the Workspace DTO plus seven permission-gated Quick Actions (six disabled with an honest reason; Import History is a real link to `/admin/imports`).
+- `src/app/admin/page.tsx` — a "Students" Quick Action link.
+
+### Verified
+
+- Live, via a minted NextAuth session (not typecheck/build alone): guardian-phone search matched two real siblings; a nonsense query and an `ALUMNI` status filter both correctly returned the empty state; descending admission-number sort produced the correct order; a real seeded student's Profile rendered correct Identity/Enrollment/Guardian/Attendance data; a nonexistent student id returned 404; no session redirected to `/login` with the correct `callbackUrl` (307).
+- `pnpm exec tsc --noEmit`, `pnpm run lint`, `pnpm run format:check`, `pnpm run build`, `pnpm exec prisma validate` all pass clean.
+- Repository/Service/DTO boundary greps: zero repository-imports-repository violations, zero direct-Prisma usage in the new services.
+
+---
+
 ## [0.33.0] — 2026-07-21 — Sprint E0: Student Domain Architecture & Workspace Certification
 
 A certification sprint, not a feature sprint — 15 mandatory architecture questions answered against real code and the published domain documentation, not assumption. No Student UI, CRUD, import, or Timeline was built. See [D-047](./DECISIONS.md#d-047--sprint-e0-student-domain-architecture--workspace-certification-15-question-certification-against-real-code-and-domain-docs-a-genuine-createinclude-decomposition-risk-found-and-fixed-in-enrollmentrepositoryts-mirroring-d-046-a-real-epic_roadmapmd-gap-promotionrecordtransfercertificate-had-no-epic-home-fixed-student-architecture-declared-frozen).

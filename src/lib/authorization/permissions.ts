@@ -55,3 +55,27 @@ export function canManageConfiguration(subject: AuthorizationSubject): boolean {
 export function canManageImports(subject: AuthorizationSubject): boolean {
   return subject.accessLevel === "ADMIN";
 }
+
+// Student Workspace (Sprint E1, Epic E) — four named capabilities per
+// docs/domain/PERMISSION_MATRIX.md § 2, kept distinct (not one collapsed
+// canManageStudents()) even though all four are Admin-only today, per
+// this file's own stated reason for existing: PERMISSION_MATRIX.md
+// already describes a scoped Teacher "R (assigned classes only)" row for
+// Student — a future /teacher/students route reads canViewStudents()
+// unchanged and adds its own scoping, without touching any of the other
+// three, if that capability is ever built.
+export function canViewStudents(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN";
+}
+
+export function canManageStudents(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN";
+}
+
+export function canTransferStudents(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN";
+}
+
+export function canDeactivateStudents(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN";
+}
