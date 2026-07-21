@@ -51,3 +51,50 @@ export async function updateAttendanceSessionEditMeta(
     data: { lastEditedByUserId: editedByUserId, lastEditedAt: new Date() },
   });
 }
+
+export interface AttendanceSessionSearchFilters {
+  sectionIds: string[];
+  dateFrom?: Date;
+  dateTo?: Date;
+  page?: number;
+  pageSize?: number;
+}
+
+// Attendance History (Sprint E2) — scoped to a caller-resolved set of
+// section ids (a Teacher's own assigned sections; PERMISSION_MATRIX.md § 5
+// "Teacher: CRU, assigned sections only"), never a school-wide scan. Does
+// not include `records` — History shows per-status counts (via a separate
+// countAttendanceBySession() call per row, small page sizes), not the full
+// roster, so pulling every AttendanceRecord here would be unused I/O.
+export async function searchAttendanceSessions(filters: AttendanceSessionSearchFilters) {
+  const { sectionIds, dateFrom, dateTo, page = 1, pageSize = 20 } = filters;
+
+  if (sectionIds.length === 0) {
+    return { items: [], total: 0, page, pageSize };
+  }
+
+  const where: Prisma.AttendanceSessionWhereInput = {
+    sectionId: { in: sectionIds },
+    ...(dateFrom || dateTo
+      ? {
+          date: {
+            ...(dateFrom ? { gte: dateFrom } : {}),
+            ...(dateTo ? { lte: dateTo } : {}),
+          },
+        }
+      : {}),
+  };
+
+  const [items, total] = await Promise.all([
+    db.attendanceSession.findMany({
+      where,
+      include: { section: { include: { schoolClass: true } } },
+      orderBy: { date: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    db.attendanceSession.count({ where }),
+  ]);
+
+  return { items, total, page, pageSize };
+}

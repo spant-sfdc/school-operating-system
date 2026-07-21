@@ -12,6 +12,32 @@ Nothing yet.
 
 ---
 
+## [0.35.0] — 2026-07-21 — Sprint E2: Attendance Operations Workspace
+
+The first genuinely daily, teacher-facing workflow — Attendance Home, an interactive Session Grid, and read-only History. See [D-049](./DECISIONS.md#d-049--sprint-e2-attendance-operations-workspace-the-first-real-teacher-facing-daily-workflow--attendance-home-session-grid-and-history-composed-entirely-from-sprint-5s-own-unmodified-submitattendanceopenattendancesession-session-locking-implemented-as-derived-state-no-schema-change-a-user-clarified-late-vs-leave-wording-question-resolved-without-touching-the-existing-enum).
+
+### Added
+
+- `src/repositories/attendanceRecord/attendanceRecord.repository.ts` — `countAttendanceBySession()`, mirroring Sprint E1's `countAttendanceByEnrollment()`.
+- `src/repositories/attendanceSession/attendanceSession.repository.ts` — `searchAttendanceSessions()`, scoped to a caller-resolved section-id set, for Attendance History.
+- `src/repositories/student/student.repository.ts` — `listGuardiansForStudents()`, a batch form of the existing single-student version, avoiding an N+1 across the Grid's ~40 rows.
+- `src/lib/authorization/permissions.ts` — `canViewAttendance()`, `canTakeAttendance()`, `canSubmitAttendance()`, `canViewAttendanceHistory()` (Admin + Teacher — this codebase's first Teacher-inclusive permissions), `canOverrideAttendanceLock()` (Admin-only, the lock-override extension point).
+- `src/services/attendance/attendanceDashboard.{service,dto}.ts` — `getAttendanceHome()`.
+- `src/services/attendance/attendanceSessionWorkspace.{service,dto}.ts` — `getAttendanceSessionWorkspace()`, `submitAttendanceGrid()`. Composes `openAttendanceSession()`/`submitAttendance()` unchanged; session `locked` is derived (every enrolled student has a record), not a stored column.
+- `src/services/attendance/attendanceHistory.{service,dto}.ts` — `searchAttendanceHistory()`.
+- `src/app/teacher/attendance/page.tsx` — Attendance Home.
+- `src/app/teacher/attendance/[sectionId]/{page.tsx,actions.ts,AttendanceGrid.tsx}` — Attendance Session: the Grid (this codebase's first Client Component — search, sort, bulk mark, reset, all client-side) and its one Server Action, `submitAttendanceGridAction`.
+- `src/app/teacher/attendance/history/page.tsx` — Attendance History.
+
+### Verified
+
+- Live, via a minted session for a real seeded Class Teacher: Attendance Home showed the correct "Not started today — 0/1 marked" state; a direct `submitAttendanceGrid()` call (mirroring the Grid's own Submit) correctly locked a session (0/1 → 1/1, 100% present); a second submit without override correctly threw `AttendanceLockedError`; the same submit with `canOverrideLock: true` correctly succeeded; the Session page re-render correctly showed the locked message; History correctly listed the session; a nonexistent section 404s; an Admin session redirects at the Teacher layout guard; no session redirects to `/login`.
+- Cross-sprint integration confirmed without any code change to it: Sprint E1's Student Workspace Attendance Summary correctly showed "100%, Present: 1" immediately after the submission above.
+- `pnpm exec tsc --noEmit`, `pnpm run lint`, `pnpm run format:check`, `pnpm run build`, `pnpm exec prisma validate` all pass clean.
+- Repository/Service boundary greps: zero repository-imports-repository violations; confirmed no new code calls `upsertAttendanceRecord()`/`createAttendanceSession()` directly (only via the unchanged `attendance.service.ts` functions).
+
+---
+
 ## [0.34.0] — 2026-07-21 — Sprint E1: Student Workspace ("Student 360")
 
 The first real, user-facing Student capability — a Directory to find a student fast, a Profile ("Student 360") to see everything about them in one place. See [D-048](./DECISIONS.md#d-048--sprint-e1-student-workspace-student-360-first-real-student-facing-capability--directory-searchfiltersortpagination--profile-read-composition-workspace-zero-new-tables-zero-frozen-architecture-changes-verified-live-via-a-minted-session-against-real-seeded-data).

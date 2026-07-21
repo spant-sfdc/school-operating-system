@@ -45,6 +45,20 @@ export async function listGuardiansForStudent(studentId: string) {
   });
 }
 
+// Batch form of listGuardiansForStudent() above — the Attendance Grid
+// (Sprint E2) needs a guardian summary per row for up to ~40 students at
+// once; one query with `studentId IN (...)`, grouped by the caller, avoids
+// the N+1 that calling the single-student version per row would cause.
+// Mirrors src/repositories/user/user.repository.ts's findUsersByIds()
+// batch-resolution precedent.
+export async function listGuardiansForStudents(studentIds: string[]) {
+  if (studentIds.length === 0) return [];
+  return db.studentGuardian.findMany({
+    where: { studentId: { in: studentIds }, deletedAt: null },
+    include: { guardian: true },
+  });
+}
+
 export interface StudentSearchFilters {
   schoolId: string;
   query?: string;

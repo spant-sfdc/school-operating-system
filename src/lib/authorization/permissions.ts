@@ -79,3 +79,39 @@ export function canTransferStudents(subject: AuthorizationSubject): boolean {
 export function canDeactivateStudents(subject: AuthorizationSubject): boolean {
   return subject.accessLevel === "ADMIN";
 }
+
+// Attendance Operations Workspace (Sprint E2, Epic E) — the first
+// capability in this codebase genuinely granted to Teacher, not
+// Admin-only, per docs/domain/PERMISSION_MATRIX.md § 5 ("AttendanceSession
+// | Admin: RU, oversight, all sections | Teacher: CRU, assigned sections
+// only"). Section-level scoping ("assigned sections only" for a Teacher)
+// is enforced separately, in the service layer, by checking the caller's
+// own TeacherAssignment rows — the same "server-side enforcement, never
+// only hidden in the UI" principle ARCHITECTURE.md § 7 already states;
+// these functions answer only "does this role participate at all."
+export function canViewAttendance(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN" || subject.accessLevel === "TEACHER";
+}
+
+export function canTakeAttendance(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN" || subject.accessLevel === "TEACHER";
+}
+
+export function canSubmitAttendance(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN" || subject.accessLevel === "TEACHER";
+}
+
+export function canViewAttendanceHistory(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN" || subject.accessLevel === "TEACHER";
+}
+
+// The extension point Sprint E2's own instruction asks for: once a session
+// is locked (every enrolled student marked, see
+// src/services/attendance/attendanceSessionWorkspace.service.ts's own
+// `locked` computation), editing requires this permission. Admin-only and
+// not wired to any real override control yet — no UI calls this today; it
+// exists so a future "Admin can reopen a locked day" capability is one
+// function to change, not a new permission to invent then.
+export function canOverrideAttendanceLock(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN";
+}

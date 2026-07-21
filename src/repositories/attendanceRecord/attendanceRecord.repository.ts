@@ -60,6 +60,30 @@ export async function countAttendanceByEnrollment(
   return counts;
 }
 
+// The Attendance Session/Summary/History views (Sprint E2) — one
+// session's full status breakdown, mirroring countAttendanceByEnrollment()
+// above exactly but grouped by sessionId instead of enrollmentId.
+export async function countAttendanceBySession(
+  sessionId: string,
+): Promise<Record<AttendanceStatus, number>> {
+  const grouped = await db.attendanceRecord.groupBy({
+    by: ["status"],
+    where: { sessionId },
+    _count: { status: true },
+  });
+
+  const counts: Record<AttendanceStatus, number> = {
+    PRESENT: 0,
+    ABSENT: 0,
+    HALF_DAY: 0,
+    LEAVE: 0,
+  };
+  for (const row of grouped) {
+    counts[row.status] = row._count.status;
+  }
+  return counts;
+}
+
 // Upsert, not create — docs/database/TRANSACTION_BOUNDARIES.md § 5: the
 // (sessionId, enrollmentId) unique constraint, not an application-level
 // check, is what actually prevents duplicate attendance. An upsert resolves
