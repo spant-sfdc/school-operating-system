@@ -65,6 +65,13 @@ export interface StudentSearchFilters {
   status?: StudentStatus | "ALL";
   schoolClassId?: string;
   sectionId?: string;
+  // A hard scope boundary — when provided, results are constrained to
+  // ONLY these sections, regardless of `sectionId`/`schoolClassId` (Sprint
+  // E3's own Teacher Quick Access: "students belonging only to the
+  // teacher's assigned sections," enforced here server-side, not just
+  // hidden in the UI). Optional and unused by the existing Admin
+  // Directory (Sprint E1), which has no such boundary — additive.
+  scopedToSectionIds?: string[];
   // The academic year an Enrollment is filtered/displayed against — always
   // resolved by the caller (defaulting to the current year), never
   // optional by the time it reaches this query; see
@@ -108,6 +115,7 @@ export async function searchStudents(filters: StudentSearchFilters) {
     status = "ALL",
     schoolClassId,
     sectionId,
+    scopedToSectionIds,
     academicYearId,
     sortBy = "name",
     sortDir = "asc",
@@ -142,11 +150,13 @@ export async function searchStudents(filters: StudentSearchFilters) {
           ],
         }
       : {}),
-    ...(sectionId
-      ? { enrollments: { some: { academicYearId, sectionId } } }
-      : schoolClassId
-        ? { enrollments: { some: { academicYearId, section: { schoolClassId } } } }
-        : {}),
+    ...(scopedToSectionIds
+      ? { enrollments: { some: { academicYearId, sectionId: { in: scopedToSectionIds } } } }
+      : sectionId
+        ? { enrollments: { some: { academicYearId, sectionId } } }
+        : schoolClassId
+          ? { enrollments: { some: { academicYearId, section: { schoolClassId } } } }
+          : {}),
   };
 
   const [items, total] = await Promise.all([

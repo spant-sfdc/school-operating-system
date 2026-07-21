@@ -12,6 +12,27 @@ Nothing yet.
 
 ---
 
+## [0.36.0] — 2026-07-21 — Sprint E3: Teacher Workspace ("Teacher 360")
+
+The capstone of Epic E's three-sprint Teacher-facing arc — a real Dashboard replacing the Sprint B1 placeholder, composing Sprint E1's Student Workspace and Sprint E2's Attendance services unchanged. See [D-050](./DECISIONS.md#d-050--sprint-e3-teacher-workspace-teacher-360-the-first-teacher-self-service-home-screen--replaces-the-sprint-b1-placeholder-stub-composes-every-prior-epic-e-sprints-own-services-unchanged-canviewstudents-extended-to-admit-teacher-the-extension-d-048-named-in-advance-searchstudents-gains-a-hard-server-side-section-scope-boundary).
+
+### Added
+
+- `src/repositories/student/student.repository.ts` — `searchStudents()` gains an additive `scopedToSectionIds` filter, a hard server-side section-scope boundary.
+- `src/services/student/studentDirectory.service.ts` — `searchStudentDirectory()` threads the new optional scope param through.
+- `src/lib/authorization/permissions.ts` — `canViewStudents()` extended to admit `TEACHER` (the three Student mutation permissions stay Admin-only); `canViewTeacherWorkspace()` (Teacher-only).
+- `src/services/teacher/teacherWorkspace.{service,dto}.ts` — `getTeacherWorkspace()`, composing `getAttendanceHome()`/`searchAttendanceHistory()` (Sprint E2) and `searchStudentDirectory()` (Sprint E1) unchanged.
+- `src/app/teacher/page.tsx` — the real Teacher Dashboard, replacing the Sprint B1 guard-verification stub.
+- `src/app/teacher/students/{page.tsx,[id]/page.tsx}` — a scoped Student Directory and a thin Profile wrapper reusing `getStudentWorkspace()` (Sprint E1) unchanged, with a Teacher-specific authorization check after calling it.
+
+### Verified
+
+- Live, via minted sessions for a real seeded Class Teacher and Admin: the Dashboard rendered correct identity, both a Class Teacher and Subject Teacher assignment row, "Students Under Care: 1," and an Attendance Summary correctly reflecting a real prior submission from Sprint E2's own verification; the Quick Action deep-linked directly to the right section; `/teacher/students` correctly listed only the scoped student; `/teacher/students/[id]` correctly 404'd for a student outside the teacher's assigned sections; an Admin regression check confirmed `/admin/students`/`/admin/students/[id]` remain unaffected by the `canViewStudents()` broadening; an Admin session redirected away from `/teacher`; no session redirected to `/login`.
+- `pnpm exec tsc --noEmit`, `pnpm run lint`, `pnpm run format:check`, `pnpm run build`, `pnpm exec prisma validate` all pass clean.
+- Repository/Service boundary greps: zero repository-imports-repository violations; confirmed no new code calls `upsertAttendanceRecord()`/`createAttendanceSession()`/`submitAttendance()`/`createStudent()` directly.
+
+---
+
 ## [0.35.0] — 2026-07-21 — Sprint E2: Attendance Operations Workspace
 
 The first genuinely daily, teacher-facing workflow — Attendance Home, an interactive Session Grid, and read-only History. See [D-049](./DECISIONS.md#d-049--sprint-e2-attendance-operations-workspace-the-first-real-teacher-facing-daily-workflow--attendance-home-session-grid-and-history-composed-entirely-from-sprint-5s-own-unmodified-submitattendanceopenattendancesession-session-locking-implemented-as-derived-state-no-schema-change-a-user-clarified-late-vs-leave-wording-question-resolved-without-touching-the-existing-enum).

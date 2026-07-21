@@ -15,10 +15,16 @@ import {
  * `academicYearId` always resolves to a real value before reaching the
  * repository — an unfiltered search still needs to know which year's
  * class/section to display per row, defaulting to "this year."
+ *
+ * `scopedToSectionIds` (Sprint E3) — an optional hard boundary threaded
+ * straight to searchStudents()'s own same-named filter, unused by the
+ * existing Admin Directory (still unscoped) and used by the Teacher
+ * Quick Access page to enforce "only my assigned sections" server-side.
  */
 export async function searchStudentDirectory(
   schoolId: string,
   input: StudentSearchInput,
+  scopedToSectionIds?: string[],
 ): Promise<StudentDirectoryResultDTO> {
   const validated = studentSearchInputSchema.parse(input);
 
@@ -38,6 +44,7 @@ export async function searchStudentDirectory(
     status: validated.status,
     schoolClassId: validated.schoolClassId,
     sectionId: validated.sectionId,
+    scopedToSectionIds,
     academicYearId,
     sortBy: validated.sortBy,
     sortDir: validated.sortDir,

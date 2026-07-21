@@ -58,14 +58,17 @@ export function canManageImports(subject: AuthorizationSubject): boolean {
 
 // Student Workspace (Sprint E1, Epic E) — four named capabilities per
 // docs/domain/PERMISSION_MATRIX.md § 2, kept distinct (not one collapsed
-// canManageStudents()) even though all four are Admin-only today, per
-// this file's own stated reason for existing: PERMISSION_MATRIX.md
-// already describes a scoped Teacher "R (assigned classes only)" row for
-// Student — a future /teacher/students route reads canViewStudents()
-// unchanged and adds its own scoping, without touching any of the other
-// three, if that capability is ever built.
+// canManageStudents()). canViewStudents() was Admin-only through Sprint
+// E1; Sprint E3's own /teacher/students route is exactly the extension
+// D-048 named in advance — PERMISSION_MATRIX.md § 2's own scoped Teacher
+// "R (assigned classes only)" row for Student — so this function's own
+// logic changes here to admit TEACHER, while the other three (mutation
+// capabilities) stay Admin-only, untouched. Section-level scoping is
+// enforced separately, in the service layer (the same pattern
+// canViewAttendance() below already established) — this function only
+// answers "does this role participate at all."
 export function canViewStudents(subject: AuthorizationSubject): boolean {
-  return subject.accessLevel === "ADMIN";
+  return subject.accessLevel === "ADMIN" || subject.accessLevel === "TEACHER";
 }
 
 export function canManageStudents(subject: AuthorizationSubject): boolean {
@@ -114,4 +117,15 @@ export function canViewAttendanceHistory(subject: AuthorizationSubject): boolean
 // function to change, not a new permission to invent then.
 export function canOverrideAttendanceLock(subject: AuthorizationSubject): boolean {
   return subject.accessLevel === "ADMIN";
+}
+
+// Teacher Workspace (Sprint E3, Epic E) — a self-service view (the "8:00
+// AM login" workflow), Teacher-only by design, not Admin — this mirrors
+// the existing /teacher/* layout guard's own accessLevel === "TEACHER"
+// requirement (src/app/teacher/layout.tsx already blocks Admin before
+// this function is ever reached); an Admin-facing cross-teacher oversight
+// view is a distinct, unbuilt future capability (the same reasoning
+// D-049 already applied to Attendance oversight), not this permission.
+export function canViewTeacherWorkspace(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "TEACHER";
 }
