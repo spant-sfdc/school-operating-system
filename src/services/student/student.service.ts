@@ -9,7 +9,11 @@ import {
   linkGuardianToStudent,
 } from "@/repositories/student";
 import { createGuardian, findGuardianById } from "@/repositories/guardian";
-import { createEnrollment, findEnrollmentByStudentAndYear } from "@/repositories/enrollment";
+import {
+  createEnrollment,
+  findEnrollmentById,
+  findEnrollmentByStudentAndYear,
+} from "@/repositories/enrollment";
 import {
   registerStudentInputSchema,
   enrollStudentInputSchema,
@@ -215,7 +219,11 @@ export async function enrollStudent(
       },
     });
 
-    return toEnrollmentDTO(enrollment);
+    const created = await findEnrollmentById(enrollment.id, t);
+    if (!created) {
+      throw new Error(`Failed to load newly-created enrollment: ${enrollment.id}`);
+    }
+    return toEnrollmentDTO(created);
   };
 
   return tx ? run(tx) : db.$transaction(run);

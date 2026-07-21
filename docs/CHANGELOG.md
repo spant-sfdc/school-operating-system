@@ -12,6 +12,28 @@ Nothing yet.
 
 ---
 
+## [0.33.0] — 2026-07-21 — Sprint E0: Student Domain Architecture & Workspace Certification
+
+A certification sprint, not a feature sprint — 15 mandatory architecture questions answered against real code and the published domain documentation, not assumption. No Student UI, CRUD, import, or Timeline was built. See [D-047](./DECISIONS.md#d-047--sprint-e0-student-domain-architecture--workspace-certification-15-question-certification-against-real-code-and-domain-docs-a-genuine-createinclude-decomposition-risk-found-and-fixed-in-enrollmentrepositoryts-mirroring-d-046-a-real-epic_roadmapmd-gap-promotionrecordtransfercertificate-had-no-epic-home-fixed-student-architecture-declared-frozen).
+
+### Fixed
+
+- `src/repositories/enrollment/enrollment.repository.ts`'s `createEnrollment()` carried a `create()+include` in one call — the same Prisma query-decomposition risk D-046 fixed for Teacher/Attendance, previously named but deliberately deferred as benign in D-032, and made a live risk once D-046 gave `enrollStudent()` an externally-supplied `tx`. Fixed identically: `createEnrollment()` no longer carries `include`; `findEnrollmentById()` gained an optional `tx` parameter; `enrollStudent()` (`src/services/student/student.service.ts`) now reads its own just-created row back via the same still-open transaction.
+- `docs/product/EPIC_ROADMAP.md`: `PromotionRecord`/`TransferCertificate` were fully specified in `DOMAIN_MODEL.md`/`DATABASE_SCHEMA.md`/`BUSINESS_RULES.md` but assigned to no Epic — added as item 5 in Epic E's own Implementation Order, after Examination.
+
+### Found, Named, Not Fixed
+
+- Live-verified: `registerStudent()` + `enrollStudent()` composed into one still-open externally-provided transaction (student created in that same transaction) fails with "Student not found" — `enrollStudent()`'s own pre-transaction `findStudentById()`/`findEnrollmentByStudentAndYear()` checks cannot see a same-transaction not-yet-committed row. The realistic shape (student committed first, enrolled in a separate transaction) works correctly, confirmed live — but also reproduces D-031's connection-contention warning under an externally-supplied `tx`. Identical class of finding, and identical resolution (name, don't fix speculatively), to D-046's own (a)/(b) findings for Teacher/Attendance. This is an honest correction to D-046's own prior conclusion that Student Import faced "no composability constraint of any kind" — that was true for `registerStudent()` alone, not for the composed register+enroll case.
+- `enrollment.repository.ts`'s own comment overstated Enrollment as "the aggregate root" — corrected to "the temporal hub" (Q1: `Student` and `Enrollment` are two separate, cooperating aggregates, neither owning the other in the strict DDD sense).
+
+### Verified
+
+- Live scratch script (self-cleaning, no fixtures left behind): the same rollback/read-via-tx methodology D-046 established, applied to `registerStudent()` + `enrollStudent()`.
+- `pnpm exec tsc --noEmit`, `pnpm run lint`, `pnpm run format:check`, `pnpm run build`, `pnpm exec prisma validate` all pass clean.
+- Repository/Service/DTO boundary greps: zero repository-imports-repository violations in `student`/`guardian`/`enrollment` repositories, zero direct-Prisma-model access outside transaction orchestration in `student.service.ts`.
+
+---
+
 ## [0.32.0] — 2026-07-21 — Sprint D4: Import Engine Freeze & Architecture Certification
 
 A certification sprint, not a feature sprint — 16 mandatory architecture questions answered against real code, not assumption. One genuine gap found and fixed; two narrower constraints found live and named. See [D-046](./DECISIONS.md#d-046--sprint-d4-import-engine-freeze--architecture-certification-16-question-certification-against-real-code-not-assumed-one-genuine-gap-found-and-fixed-studentteacherattendanceservicets-gain-the-same-tx-passthrough-d2-gave-academicservicets-verified-live-with-a-real-rollback-test-two-narrower-composability-constraints-named-but-deliberately-not-fixed-epic-ds-core-engine-declared-frozen).
