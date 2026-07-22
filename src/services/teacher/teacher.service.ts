@@ -2,7 +2,12 @@ import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
 import { writeAuditLog } from "@/lib/db-utils";
 import { createUser, findUserByEmail } from "@/repositories/user";
-import { createTeacher, findTeacherById, updateTeacherStatus } from "@/repositories/teacher";
+import {
+  createTeacher,
+  findTeacherById,
+  updateTeacherStatus,
+  updateTeacherProfile,
+} from "@/repositories/teacher";
 import { createTeacherQualification } from "@/repositories/teacherQualification";
 import {
   createTeacherAssignment,
@@ -16,10 +21,14 @@ import {
   assignTeacherInputSchema,
   updateTeacherAssignmentInputSchema,
   deactivateTeacherInputSchema,
+  reactivateTeacherInputSchema,
+  editTeacherProfileInputSchema,
   type RegisterTeacherInput,
   type AssignTeacherInput,
   type UpdateTeacherAssignmentInput,
   type DeactivateTeacherInput,
+  type ReactivateTeacherInput,
+  type EditTeacherProfileInput,
 } from "@/lib/validations/teacher";
 import { toTeacherDTO, type TeacherDTO } from "@/services/teacher/dto/teacher.dto";
 import { toTeacherQualificationDTO } from "@/services/teacher/dto/teacherQualification.dto";
@@ -365,6 +374,124 @@ export async function deactivateTeacher(
       action: "UPDATE",
       beforeValue: { status: teacher.status },
       afterValue: { status: "EXITED" },
+    });
+
+    return toTeacherDTO(updated);
+  };
+
+  return tx ? run(tx) : db.$transaction(run);
+}
+
+/**
+ * Reactivates a Teacher (`status` back to `ACTIVE`) — the symmetric
+ * counterpart deactivateTeacher() above never got. Found during Sprint E5
+ * (Teacher Management): every other lifecycle-state entity in this
+ * codebase with a "deactivate" already has a "reactivate" alongside it
+ * (`deactivateUser()`/`reactivateUser()`, src/repositories/user/), but
+ * Teacher's only went one way — `updateTeacherStatus()` (the repository
+ * primitive) was always generic to any TeacherStatus, so nothing here
+ * required a schema or repository change, only this missing service
+ * wrapper. A genuine, if narrow, architectural defect: without it,
+ * Teacher Management's own required "Activate" Quick Action had no real
+ * operation to call for a Teacher whose status is `EXITED`/`ON_LEAVE`. See
+ * D-052 for the live verification proving the round trip.
+ *
+ * Optional `tx`, same passthrough pattern as deactivateTeacher() above.
+ */
+export async function reactivateTeacher(
+  input: ReactivateTeacherInput,
+  actorUserId: string,
+  tx?: Prisma.TransactionClient,
+): Promise<TeacherDTO> {
+  const validated = reactivateTeacherInputSchema.parse(input);
+
+  const teacher = await findTeacherById(validated.teacherId);
+  if (!teacher) {
+    throw new Error(`Teacher not found: ${validated.teacherId}`);
+  }
+  if (teacher.status === "ACTIVE") {
+    throw new Error("This teacher is already active.");
+  }
+
+  const run = async (t: Prisma.TransactionClient) => {
+    const updated = await updateTeacherStatus(validated.teacherId, "ACTIVE", t);
+
+    await writeAuditLog(t, {
+      schoolId: teacher.schoolId,
+      entityType: "Teacher",
+      entityId: teacher.id,
+      actorUserId,
+      action: "UPDATE",
+      beforeValue: { status: teacher.status },
+      afterValue: { status: "ACTIVE" },
+    });
+
+    return toTeacherDTO(updated);
+  };
+
+  return tx ? run(tx) : db.$transaction(run);
+}
+
+/**
+ * Edits a Teacher's own profile fields (name, phone, gender, date of
+ * birth, photo) — Sprint E5's own required "Edit" Quick Action, not built
+ * by any prior sprint (registerTeacher() only covers creation).
+ * Deliberately excludes `status` — that transition is
+ * reactivateTeacher()/deactivateTeacher()'s own job, mirroring
+ * editUserAccount()'s own "role changes are a separate, guarded path"
+ * precedent for the identical reason (a lifecycle transition should never
+ * be silently bundled into an unrelated field edit).
+ */
+export async function editTeacherProfile(
+  input: EditTeacherProfileInput,
+  actorUserId: string,
+  tx?: Prisma.TransactionClient,
+): Promise<TeacherDTO> {
+  const validated = editTeacherProfileInputSchema.parse(input);
+
+  const existing = await findTeacherById(validated.teacherId);
+  if (!existing) {
+    throw new Error(`Teacher not found: ${validated.teacherId}`);
+  }
+
+  const beforeValue = {
+    firstName: existing.firstName,
+    lastName: existing.lastName,
+    phone: existing.phone,
+    gender: existing.gender,
+    dateOfBirth: existing.dateOfBirth,
+    photoUrl: existing.photoUrl,
+  };
+
+  const run = async (t: Prisma.TransactionClient) => {
+    const updated = await updateTeacherProfile(
+      validated.teacherId,
+      {
+        ...(validated.firstName !== undefined ? { firstName: validated.firstName } : {}),
+        ...(validated.lastName !== undefined ? { lastName: validated.lastName } : {}),
+        ...(validated.phone !== undefined ? { phone: validated.phone } : {}),
+        ...(validated.gender !== undefined ? { gender: validated.gender } : {}),
+        ...(validated.dateOfBirth !== undefined ? { dateOfBirth: validated.dateOfBirth } : {}),
+        ...(validated.photoUrl !== undefined ? { photoUrl: validated.photoUrl } : {}),
+      },
+      t,
+    );
+
+    await writeAuditLog(t, {
+      schoolId: existing.schoolId,
+      entityType: "Teacher",
+      entityId: existing.id,
+      actorUserId,
+      action: "UPDATE",
+      beforeValue,
+      afterValue: {
+        firstName: updated.firstName,
+        lastName: updated.lastName,
+        phone: updated.phone,
+        gender: updated.gender,
+        dateOfBirth: updated.dateOfBirth,
+        photoUrl: updated.photoUrl,
+      },
     });
 
     return toTeacherDTO(updated);

@@ -12,6 +12,33 @@ Nothing yet.
 
 ---
 
+## [0.38.0] — 2026-07-23 — Sprint E5: Teacher Management (Administration) & Teacher Domain Freeze
+
+Brought Teacher Management to parity with Student Management — a real Teacher Directory and Admin Teacher 360, reusing every prior sprint's own services and conventions unchanged, plus one genuine architectural defect found and fixed. See [D-052](./DECISIONS.md#d-052--sprint-e5-teacher-management-administration--teacher-domain-freeze-teacher-directory--admin-teacher-360-reuse-directorysearch-conventions-not-students-own-function-and-every-prior-sprints-own-services-unchanged-one-genuine-asymmetry-found-and-fixed--reactivateteacher-the-missing-counterpart-to-sprint-4s-deactivateteacher-workload-computed-fresh-on-every-render-never-stored-teacher-domain-architecture-declared-frozen).
+
+### Added
+
+- `src/repositories/teacher/teacher.repository.ts` — `findTeacherWithUserById()`, `updateTeacherProfile()`, `searchTeachers()` (+ `TeacherSearchFilters`).
+- `src/repositories/teacherQualification/teacherQualification.repository.ts` — `listDistinctQualificationTypes()`.
+- `src/repositories/teacherAssignment/teacherAssignment.repository.ts` — `listAssignmentHistoryForTeacher()` (full multi-year history, including ended assignments).
+- `src/repositories/auditLog/auditLog.repository.ts` + `src/lib/validations/audit.ts` — additive `entityIds` filter (exact-match, alongside the existing substring `query`), unused by the Audit Log Viewer's own filter panel.
+- `src/lib/validations/teacher.ts` — `reactivateTeacherInputSchema`, `editTeacherProfileInputSchema`, `teacherSearchInputSchema`.
+- `src/services/teacher/teacher.service.ts` — `reactivateTeacher()` (the missing symmetric counterpart to `deactivateTeacher()`, Sprint 4 — a genuine architectural defect, fixed here), `editTeacherProfile()`.
+- `src/services/teacher/teacherDirectory.{service,dto}.ts` — `searchTeacherDirectory()`.
+- `src/services/teacher/adminTeacherWorkspace.{service,dto}.ts` — `getAdminTeacherWorkspace()`, composing Assignments/Qualifications/computed Workload/composed Recent Activity/Quick Actions/Cross-Navigation.
+- `src/app/admin/teachers/{page.tsx,actions.ts}`, `src/app/admin/teachers/[id]/page.tsx`, `src/app/admin/teachers/[id]/edit/page.tsx` — the real Teacher Directory and Admin Teacher 360.
+- `src/services/principal/principalWorkspace.service.ts` — "Teachers" Quick Action now points at `/admin/teachers` (closing D-051's own named gap), superseding the `roleId`-filtered `/admin/users` stand-in.
+
+### Verified
+
+- Live, against real seeded data (6 teachers): Directory search/filter/sort/pagination all correct (`query=Meera` → 1, `classTeacherOnly=1` → 2, `status=EXITED` → 0, `qualificationType=B.Ed` → 3, `Page 1 of 1 (6 total)`); Teacher 360 rendered correct Identity/Account/Workload/Assignments/Qualifications/Recent Activity for a real Class Teacher; a live Edit (phone) and a live Deactivate→Reactivate round trip (including the correctly-rejected double-reactivate) both applied and appeared in Recent Activity immediately, then were reverted; Reset Password correctly reused the existing `/admin/users/[id]/reset-password` page unchanged.
+- Authorization: a Teacher session was blocked (307) from `/admin/teachers` and `/admin/teachers/[id]`, while its own `/teacher` Dashboard remained unaffected (200); no session was blocked (307).
+- Regression: Principal Dashboard (all four Overview sections, 200), Teacher self-service Workspace (200), Student Directory and its own `sectionId` cross-navigation target (200) all confirmed unaffected.
+- `pnpm exec tsc --noEmit`, `pnpm run lint`, `pnpm run format:check`, `pnpm run build`, `pnpm exec prisma validate` all pass clean.
+- Repository/Service boundary greps: zero repository-imports-repository violations; no direct Prisma usage in any new service file.
+
+---
+
 ## [0.37.0] — 2026-07-22 — Sprint E4: Principal Workspace ("Principal 360")
 
 Epic E's capstone — a School Operations Dashboard, enhancing Sprint B3's own Admin Home in place rather than a parallel route, since Principal and Administrator already share `accessLevel: ADMIN` (D-028/D-029). See [D-051](./DECISIONS.md#d-051--sprint-e4-principal-workspace-principal-360-a-school-operations-dashboard-enhancing-the-existing-admin-home-in-place-rather-than-a-parallel-route--principal-and-administrator-are-both-accesslevel-admin-role-rows-d-028d-029-so-no-new-accesslevel-distinction-was-needed-one-shared-per-section-computation-feeds-both-attendance-and-teacher-overview).

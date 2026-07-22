@@ -18,6 +18,14 @@ export const searchAuditEventsInputSchema = z.object({
   entityType: z.string().min(1).optional(),
   actorUserId: z.string().min(1).optional(),
   query: z.string().max(120).optional(),
+  // An additive, exact-match alternative to `query`'s own substring
+  // search — Sprint E5's own Teacher 360 "Recent Activity" section needs
+  // every audit entry belonging to a specific, caller-known set of entity
+  // ids (a Teacher's own id, its User id, and every one of its
+  // TeacherAssignment ids) in one query, not a substring scan across each
+  // separately. Unused by the Audit Log Viewer's own filter panel — that
+  // page keeps using `query`, unchanged.
+  entityIds: z.array(z.string().min(1)).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
 });

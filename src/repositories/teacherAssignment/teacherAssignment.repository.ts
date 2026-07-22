@@ -52,6 +52,22 @@ export async function listAssignmentsForTeacher(teacherId: string, academicYearI
   });
 }
 
+// Full assignment history for a teacher — every academic year, including
+// soft-deleted (ended) rows — the Admin Teacher 360's own "Historical
+// Assignments" section (Sprint E5), distinct from
+// listAssignmentsForTeacher() above (current-year, active-only, the
+// Teacher's own self-service Workspace scope from Sprint E3). Ending an
+// assignment soft-deletes rather than mutates in place specifically so
+// this history stays queryable — see updateTeacherAssignment()'s own
+// comment in teacher.service.ts.
+export async function listAssignmentHistoryForTeacher(teacherId: string) {
+  return db.teacherAssignment.findMany({
+    where: { teacherId },
+    include: ASSIGNMENT_INCLUDE,
+    orderBy: [{ academicYear: { startDate: "desc" } }, { createdAt: "desc" }],
+  });
+}
+
 // "Who teaches this section" — the permission-check query, per
 // docs/database/DATABASE_REVIEW.md § 7 query pattern (b).
 export async function listAssignmentsForSection(sectionId: string, academicYearId: string) {

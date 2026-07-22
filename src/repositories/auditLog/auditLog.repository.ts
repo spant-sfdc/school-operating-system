@@ -28,6 +28,10 @@ export interface AuditLogSearchFilters {
   entityType?: string;
   actorUserId?: string;
   query?: string;
+  // Additive, exact-match alternative to `query` — see
+  // src/lib/validations/audit.ts's own comment for why (Sprint E5's Teacher
+  // 360 "Recent Activity" section).
+  entityIds?: string[];
   page?: number;
   pageSize?: number;
 }
@@ -44,6 +48,7 @@ export async function searchAuditLogs(filters: AuditLogSearchFilters) {
     entityType,
     actorUserId,
     query,
+    entityIds,
     page = 1,
     pageSize = 25,
   } = filters;
@@ -53,6 +58,7 @@ export async function searchAuditLogs(filters: AuditLogSearchFilters) {
     ...(action ? { action } : {}),
     ...(entityType ? { entityType } : {}),
     ...(actorUserId ? { actorUserId } : {}),
+    ...(entityIds && entityIds.length > 0 ? { entityId: { in: entityIds } } : {}),
     ...(startDate || endDate
       ? {
           timestamp: {

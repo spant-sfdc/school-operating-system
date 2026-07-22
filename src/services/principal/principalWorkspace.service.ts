@@ -4,7 +4,6 @@ import { findAttendanceSessionBySectionAndDate } from "@/repositories/attendance
 import { listEnrollmentsBySection } from "@/repositories/enrollment";
 import { listAssignmentsForSection } from "@/repositories/teacherAssignment";
 import { listActiveTeachersBySchool } from "@/repositories/teacher";
-import { findRoleByName } from "@/repositories/role";
 import { checkSystemReadiness, getSchoolDetails } from "@/services/system";
 import { getConfigurationSummary } from "@/services/configuration";
 import { listImportBatches } from "@/services/import";
@@ -135,29 +134,24 @@ function buildAlerts(input: {
   return alerts;
 }
 
-// "Teachers" has no dedicated Admin-facing list page yet (Sprint E3 built
-// /teacher's own self-service Dashboard, not an Admin-facing Teacher
-// list) — /admin/users already supports a `roleId` filter
-// (src/app/admin/users/page.tsx, Sprint B2), so this resolves the
-// Teacher Role's own id and links to a genuinely pre-filtered view
-// rather than a plain, unfiltered one or a link to a page that doesn't
-// exist. "Attendance" has no Admin-facing oversight page either
-// (D-049's own named future gap) — its Quick Action anchors to this same
+// "Teachers" now links to the real Teacher Directory (/admin/teachers,
+// Sprint E5) — D-051's own named gap closed, superseding the pre-filtered
+// /admin/users?roleId=... link that sprint used as an honest stand-in
+// before a real Teacher list existed. findRoleByName("Teacher") is no
+// longer needed for this link, but stays imported/used nowhere else in
+// this file as of this sprint — removed below. "Attendance" has no
+// Admin-facing oversight page either (D-049's own named future gap,
+// reaffirmed in D-052 too) — its Quick Action still anchors to this same
 // Dashboard's own Attendance Overview section instead of a broken link.
-// "System Setup"/"Developer Information" aren't among this sprint's own
-// 7 named actions, but were real, working links on the page this sprint
-// enhances (Sprint B3) — kept, not silently dropped, per this sprint's
-// own "do not redesign existing domains" instruction; removing working
-// navigation would itself be an undiscussed redesign.
+// "System Setup"/"Developer Information" aren't among D-051's own 7 named
+// actions, but were real, working links on the page that sprint enhanced
+// (Sprint B3) — kept, not silently dropped, per this codebase's own "do
+// not redesign existing domains" instruction; removing working navigation
+// would itself be an undiscussed redesign.
 async function buildQuickActions(): Promise<PrincipalQuickActionDTO[]> {
-  const teacherRole = await findRoleByName("Teacher");
   return [
     { id: "students", label: "Students", href: "/admin/students" },
-    {
-      id: "teachers",
-      label: "Teachers",
-      href: teacherRole ? `/admin/users?roleId=${teacherRole.id}` : "/admin/users",
-    },
+    { id: "teachers", label: "Teachers", href: "/admin/teachers" },
     { id: "attendance", label: "Attendance", href: "#attendance-overview" },
     { id: "configuration", label: "Configuration", href: "/admin/configuration" },
     { id: "imports", label: "Imports", href: "/admin/imports" },
