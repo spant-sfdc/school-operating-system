@@ -60,7 +60,7 @@ export const studentSearchInputSchema = z.object({
   schoolClassId: z.string().min(1).optional(),
   sectionId: z.string().min(1).optional(),
   academicYearId: z.string().min(1).optional(),
-  sortBy: z.enum(["name", "admissionNumber", "status"]).optional(),
+  sortBy: z.enum(["name", "admissionNumber", "status", "recent"]).optional(),
   sortDir: z.enum(["asc", "desc"]).optional(),
   page: z.coerce.number().int().min(1).optional(),
 });

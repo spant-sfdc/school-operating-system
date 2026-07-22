@@ -77,7 +77,12 @@ export interface StudentSearchFilters {
   // optional by the time it reaches this query; see
   // src/services/student/studentDirectory.service.ts.
   academicYearId: string;
-  sortBy?: "name" | "admissionNumber" | "status";
+  // "recent" (Sprint E4's own Principal Workspace Student Overview —
+  // "Recently Added") orders by `createdAt`, unlike the other three,
+  // which order by a display field; added here rather than a new
+  // repository function since it's the same query shape with a different
+  // ORDER BY, not a different query.
+  sortBy?: "name" | "admissionNumber" | "status" | "recent";
   sortDir?: "asc" | "desc";
   page?: number;
   pageSize?: number;
@@ -92,6 +97,8 @@ function buildOrderBy(
       return [{ admissionNumber: sortDir }];
     case "status":
       return [{ status: sortDir }, { firstName: "asc" }];
+    case "recent":
+      return [{ createdAt: "desc" }];
     case "name":
     default:
       return [{ firstName: sortDir }, { lastName: sortDir }];

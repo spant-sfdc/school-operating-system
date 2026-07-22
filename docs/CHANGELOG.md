@@ -12,6 +12,28 @@ Nothing yet.
 
 ---
 
+## [0.37.0] — 2026-07-22 — Sprint E4: Principal Workspace ("Principal 360")
+
+Epic E's capstone — a School Operations Dashboard, enhancing Sprint B3's own Admin Home in place rather than a parallel route, since Principal and Administrator already share `accessLevel: ADMIN` (D-028/D-029). See [D-051](./DECISIONS.md#d-051--sprint-e4-principal-workspace-principal-360-a-school-operations-dashboard-enhancing-the-existing-admin-home-in-place-rather-than-a-parallel-route--principal-and-administrator-are-both-accesslevel-admin-role-rows-d-028d-029-so-no-new-accesslevel-distinction-was-needed-one-shared-per-section-computation-feeds-both-attendance-and-teacher-overview).
+
+### Added
+
+- `src/repositories/section/section.repository.ts` — `listSectionsBySchoolAndYear()`, the first function enumerating every section in a school for a year (prior functions were per-class only).
+- `src/repositories/student/student.repository.ts` — `StudentSearchFilters.sortBy` gains `"recent"` (orders by `createdAt: "desc"`), for the Student Overview's "Recently Added" list.
+- `src/lib/validations/student.ts` — `studentSearchInputSchema.sortBy` gains `"recent"`, matching the repository extension.
+- `src/lib/authorization/permissions.ts` — `canViewPrincipalWorkspace()`, an `accessLevel === "ADMIN"` check (no new `AccessLevel` value — Principal and Administrator are both `Role` rows sharing one tier).
+- `src/services/principal/principalWorkspace.{service,dto}.ts` — `getPrincipalWorkspace()`, a read-composition service composing `checkSystemReadiness()`/`getSchoolDetails()` (Sprint B3), `getConfigurationSummary()` (Sprint C1), `listImportBatches()` (Sprint D1/D3), and `searchStudentDirectory()` (Sprint E1) unchanged, plus a new shared `computeSectionStates()` helper feeding both Attendance Overview and Teacher Overview from one per-section computation. Zero new database tables.
+- `src/app/admin/page.tsx` — rewritten in place: School Overview, Attendance Overview, Teacher Overview, Student Overview, deterministic Operational Alerts (no AI, no predictions), Quick Actions, and an honest Recent Activity placeholder. Sprint B3's own prior content (System Ready/School/Academic Year, Create User/System Setup/Developer Information/Import History links) is preserved, reorganized into the new sections.
+
+### Verified
+
+- Live, via a minted Administrator session: School Overview, Attendance Overview (0 completed / 22 pending sections, 0/5 students marked, correctly reflecting a fresh day), Teacher Overview (6 teachers / 6 assignments, self-consistent with Attendance Overview), and Student Overview (5 total / 5 enrollments / 0 inactive, real "Recently Added" list) all rendered correct, internally-consistent real data; Operational Alerts correctly fired "22 section(s) have not completed attendance today" plus the honest audit-anomaly placeholder; all Quick Actions rendered with correct, real hrefs, including the pre-filtered `/admin/users?roleId=<Teacher role id>` link (confirmed to return exactly 6 users, matching Teacher Overview's own count) and the `#attendance-overview` anchor.
+- Permission boundary: a Teacher session requesting `/admin` returned 307 (blocked); an Administrator session returned 200 with full correct content; no session returned 307.
+- `pnpm exec tsc --noEmit`, `pnpm run lint`, `pnpm run format:check`, `pnpm run build`, `pnpm exec prisma validate` all pass clean.
+- Repository/Service boundary greps: zero repository-imports-repository violations; the new service calls no write functions and uses no direct Prisma access.
+
+---
+
 ## [0.36.0] — 2026-07-21 — Sprint E3: Teacher Workspace ("Teacher 360")
 
 The capstone of Epic E's three-sprint Teacher-facing arc — a real Dashboard replacing the Sprint B1 placeholder, composing Sprint E1's Student Workspace and Sprint E2's Attendance services unchanged. See [D-050](./DECISIONS.md#d-050--sprint-e3-teacher-workspace-teacher-360-the-first-teacher-self-service-home-screen--replaces-the-sprint-b1-placeholder-stub-composes-every-prior-epic-e-sprints-own-services-unchanged-canviewstudents-extended-to-admit-teacher-the-extension-d-048-named-in-advance-searchstudents-gains-a-hard-server-side-section-scope-boundary).

@@ -129,3 +129,18 @@ export function canOverrideAttendanceLock(subject: AuthorizationSubject): boolea
 export function canViewTeacherWorkspace(subject: AuthorizationSubject): boolean {
   return subject.accessLevel === "TEACHER";
 }
+
+// Principal Workspace (Sprint E4, Epic E) — "Principal should access this
+// workspace. Administrator may also access it. Teacher must not." Role
+// (Principal vs. Administrator) and AccessLevel (ADMIN vs. TEACHER) are
+// different concepts in this codebase (D-028/D-029): both "Principal" and
+// "Administrator" are Role rows sharing `accessLevel: ADMIN` — there is
+// no third AccessLevel to check. This function's own logic is therefore
+// identical to every other Admin-only check in this file; it exists as
+// its own named function anyway, per this file's own stated reason —
+// intention-revealing at the call site, and ready for a real
+// Principal-vs-Administrator distinction without touching call sites, if
+// one is ever needed.
+export function canViewPrincipalWorkspace(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN";
+}
