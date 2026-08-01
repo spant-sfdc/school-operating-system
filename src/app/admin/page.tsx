@@ -28,7 +28,8 @@ export default async function AdminHomePage() {
   const authSession = await auth();
 
   const workspace = await getPrincipalWorkspace(session.schoolId);
-  const { schoolOverview, attendanceOverview, teacherOverview, studentOverview } = workspace;
+  const { schoolOverview, attendanceOverview, teacherOverview, studentOverview, resultsOverview } =
+    workspace;
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
@@ -127,6 +128,21 @@ export default async function AdminHomePage() {
               </ul>
             </div>
           ) : null}
+        </section>
+
+        <section className="rounded-md border p-4">
+          <h2 className="mb-3 text-sm font-semibold">Results Overview</h2>
+          <dl className="flex flex-col gap-2 text-sm">
+            <Row label="Awaiting Review" value={String(resultsOverview.awaitingReviewCount)} />
+            <Row label="Returned for Correction" value={String(resultsOverview.returnedCount)} />
+            <Row label="Ready to Publish" value={String(resultsOverview.readyToPublishCount)} />
+            <Row label="Published" value={String(resultsOverview.publishedCount)} />
+          </dl>
+          <div className="mt-3">
+            <Link href="/admin/examinations" className="text-primary text-sm underline">
+              Go to Result Review →
+            </Link>
+          </div>
         </section>
 
         <section className="rounded-md border p-4 md:col-span-2">

@@ -8,10 +8,12 @@ import { checkSystemReadiness, getSchoolDetails } from "@/services/system";
 import { getConfigurationSummary } from "@/services/configuration";
 import { listImportBatches } from "@/services/import";
 import { searchStudentDirectory } from "@/services/student/studentDirectory.service";
+import { getResultReviewDashboard } from "@/services/resultReview";
 import {
   deriveConfiguredStatus,
   type PrincipalWorkspaceDTO,
   type AttendanceOverviewDTO,
+  type ResultsOverviewDTO,
   type OperationalAlertDTO,
   type PrincipalQuickActionDTO,
 } from "@/services/principal/principalWorkspace.dto";
@@ -78,12 +80,33 @@ function buildAttendanceOverview(sectionStates: SectionAttendanceState[]): Atten
   };
 }
 
+// Sprint E9 — sums the already-computed per-examination counts from
+// getResultReviewDashboard() (resultReviewDashboard.service.ts), never
+// recomputing readiness itself. "Ready to publish" and "Published" are
+// mutually exclusive per examination (PUBLISHED examinations don't carry
+// blocking issues to begin with, per getPublicationReadiness()'s own
+// examinationNotCompleted gate), so a straight per-examination sum is
+// correct here, not double-counting.
+function buildResultsOverview(
+  dashboard: Awaited<ReturnType<typeof getResultReviewDashboard>>,
+): ResultsOverviewDTO {
+  return {
+    awaitingReviewCount: dashboard.examinations.reduce((sum, e) => sum + e.awaitingReviewCount, 0),
+    returnedCount: dashboard.examinations.reduce((sum, e) => sum + e.returnedCount, 0),
+    readyToPublishCount: dashboard.examinations.filter((e) => e.readyToPublish).length,
+    publishedCount: dashboard.examinations.filter((e) => e.status === "PUBLISHED").length,
+    totalActiveExaminations: dashboard.examinations.length,
+  };
+}
+
 function buildAlerts(input: {
   hasAcademicYear: boolean;
   bootstrapReady: boolean;
   configNeedsAttentionCount: number;
   pendingSections: number;
   failedImportCount: number;
+  resultsAwaitingReview: number;
+  resultsReadyToPublish: number;
 }): OperationalAlertDTO[] {
   const alerts: OperationalAlertDTO[] = [];
 
@@ -122,6 +145,20 @@ function buildAlerts(input: {
       message: `${input.failedImportCount} import batch(es) failed or only partially completed.`,
     });
   }
+  if (input.resultsAwaitingReview > 0) {
+    alerts.push({
+      id: "results-awaiting-review",
+      severity: "warning",
+      message: `${input.resultsAwaitingReview} submission(s) are awaiting Result Review.`,
+    });
+  }
+  if (input.resultsReadyToPublish > 0) {
+    alerts.push({
+      id: "results-ready-to-publish",
+      severity: "info",
+      message: `${input.resultsReadyToPublish} examination(s) are fully approved and ready to publish.`,
+    });
+  }
   // A deliberate placeholder, per this sprint's own "deterministic alerts
   // only... audit anomaly placeholder" instruction — no anomaly-detection
   // logic exists to back this, and none is being invented here.
@@ -155,6 +192,7 @@ async function buildQuickActions(): Promise<PrincipalQuickActionDTO[]> {
     { id: "attendance", label: "Attendance", href: "#attendance-overview" },
     { id: "configuration", label: "Configuration", href: "/admin/configuration" },
     { id: "imports", label: "Imports", href: "/admin/imports" },
+    { id: "results", label: "Results", href: "/admin/examinations" },
     { id: "audit", label: "Audit", href: "/admin/audit" },
     { id: "users", label: "Users", href: "/admin/users" },
     { id: "system-setup", label: "System Setup", href: "/admin/setup" },
@@ -189,6 +227,9 @@ export async function getPrincipalWorkspace(schoolId: string): Promise<Principal
   const teachers = await listActiveTeachersBySchool(schoolId);
   const totalAssignments = sectionStates.reduce((sum, s) => sum + s.assignmentCount, 0);
 
+  const resultReviewDashboard = await getResultReviewDashboard(schoolId);
+  const resultsOverview = buildResultsOverview(resultReviewDashboard);
+
   const [totalResult, activeResult, recentResult, failedBatches, partialBatches] =
     await Promise.all([
       currentAcademicYear
@@ -222,6 +263,8 @@ export async function getPrincipalWorkspace(schoolId: string): Promise<Principal
     configNeedsAttentionCount: configSummary.needsAttentionCount,
     pendingSections: attendanceOverview.pendingSections,
     failedImportCount: failedBatches.total + partialBatches.total,
+    resultsAwaitingReview: resultsOverview.awaitingReviewCount,
+    resultsReadyToPublish: resultsOverview.readyToPublishCount,
   });
 
   return {
@@ -249,6 +292,7 @@ export async function getPrincipalWorkspace(schoolId: string): Promise<Principal
       })),
       inactiveStudents: totalResult.total - activeResult.total,
     },
+    resultsOverview,
     alerts,
     quickActions,
     recentActivity: {

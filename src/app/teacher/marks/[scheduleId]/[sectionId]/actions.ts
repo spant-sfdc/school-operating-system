@@ -5,13 +5,9 @@ import { z } from "zod";
 
 import { requirePermission, canEnterMarks, canSubmitMarks } from "@/lib/authorization";
 import { findTeacherByUserId } from "@/repositories/teacher";
-import {
-  saveDraftMarksGrid,
-  submitMarksGrid,
-  MarksAuthorizationError,
-  MarksLockedError,
-} from "@/services/marks";
+import { saveDraftMarksGrid, MarksAuthorizationError, MarksLockedError } from "@/services/marks";
 import { MarksValidationError } from "@/services/marks/marks.service";
+import { submitMarksForReview } from "@/services/resultReview";
 
 const gridPayloadSchema = z.object({
   scheduleId: z.string().min(1),
@@ -63,11 +59,17 @@ export async function saveDraftMarksAction(payload: unknown): Promise<{ error: s
 }
 
 /**
- * Submit — the one Server Action for final submission. Composes
- * submitMarksGrid() (which itself composes the existing, unchanged
- * submitMarks()) — the "missing marks" / "locked examination" / "already
- * submitted" / "unauthorized teacher" checks all happen inside that
- * function, not duplicated here.
+ * Submit — the one Server Action for final submission (and resubmission
+ * after a Return for Correction). Composes submitMarksForReview()
+ * (src/services/resultReview/marksSubmission.service.ts, Sprint E9), which
+ * itself composes the existing, unchanged submitMarksGrid()/submitMarks()
+ * — the "missing marks" / "locked examination" / "already submitted" /
+ * "unauthorized teacher" checks all still happen inside those functions,
+ * not duplicated here. The only new behavior at this layer is that
+ * "submit" now also creates/advances the MarksSubmission row Principal/
+ * Admin review against — the same error types apply, since
+ * submitMarksForReview() reuses MarksAuthorizationError/MarksLockedError
+ * rather than inventing new ones for this path.
  */
 export async function submitMarksGridAction(payload: unknown): Promise<{ error: string } | never> {
   const session = await requirePermission(canSubmitMarks);
@@ -76,7 +78,7 @@ export async function submitMarksGridAction(payload: unknown): Promise<{ error: 
   const teacher = await findTeacherByUserId(session.userId);
 
   try {
-    await submitMarksGrid(
+    await submitMarksForReview(
       {
         examSubjectScheduleId: validated.scheduleId,
         sectionId: validated.sectionId,

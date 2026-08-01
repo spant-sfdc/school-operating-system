@@ -77,3 +77,21 @@ export async function updateExaminationStatus(
 ) {
   return tx.examination.update({ where: { id }, data: { status } });
 }
+
+// Sprint E9 — the one, terminal COMPLETED -> PUBLISHED transition,
+// distinct from updateExaminationStatus() above (which any status
+// transition could use) because this one always sets three fields
+// together (status + publishedByUserId + publishedAt) — the same
+// "actor + time recorded once, on the row, at the terminal action"
+// pattern TransferCertificate's own issuedByUserId/dateOfIssue already
+// established, not a status flip alone.
+export async function publishExaminationRecord(
+  id: string,
+  publishedByUserId: string,
+  tx: Prisma.TransactionClient = db,
+) {
+  return tx.examination.update({
+    where: { id },
+    data: { status: "PUBLISHED", publishedByUserId, publishedAt: new Date() },
+  });
+}

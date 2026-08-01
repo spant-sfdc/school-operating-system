@@ -4,6 +4,7 @@ import { findSchoolClassById } from "@/repositories/schoolClass";
 import { listEnrollmentsBySection } from "@/repositories/enrollment";
 import { listAssignmentsForSection } from "@/repositories/teacherAssignment";
 import { listMarksRecordsForScheduleAndSection } from "@/repositories/marksRecord";
+import { findMarksSubmissionByScheduleAndSection } from "@/repositories/marksSubmission";
 import { getExamSubjectScheduleById, getExaminationById } from "@/services/examination";
 import { saveDraftMarks, submitMarks, MarksLockedError } from "@/services/marks/marks.service";
 import {
@@ -122,6 +123,16 @@ export async function getMarksEntryWorkspace(
   const submittedCount = rows.filter((r) => r.status === "SUBMITTED").length;
   const summary = buildMarksEntrySummary(rows.length, enteredCount, submittedCount);
 
+  // Sprint E9 — read-only lookup, additive: composes the new
+  // marksSubmission repository the same way this function already
+  // composes section/schoolClass/enrollment/marksRecord reads. Absence
+  // (no row yet, or reverted to DRAFT after a Return) is a valid, expected
+  // state, not an error.
+  const submission = await findMarksSubmissionByScheduleAndSection(
+    examSubjectScheduleId,
+    sectionId,
+  );
+
   return {
     examSubjectScheduleId,
     examinationId: examination.id,
@@ -136,8 +147,12 @@ export async function getMarksEntryWorkspace(
     academicYearLabel: examination.academicYearLabel,
     rows,
     summary,
-    locked: submittedCount === rows.length && rows.length > 0,
+    locked:
+      (submittedCount === rows.length && rows.length > 0) || examination.status === "PUBLISHED",
     examinationInactive: examination.status !== "ACTIVE",
+    submissionStatus: submission?.status ?? null,
+    returnReason: submission?.returnReason ?? null,
+    resubmissionCount: submission?.resubmissionCount ?? 0,
   };
 }
 
@@ -211,6 +226,21 @@ export async function saveDraftMarksGrid(
  * incoming payload with whatever's already saved as DRAFT, so a teacher
  * who saved some rows as drafts earlier and is now completing the rest
  * doesn't have to resend every value in one submit call.
+ *
+ * Deliberately does NOT accept an external `tx` — an earlier Sprint E9
+ * revision tried threading one through (so submitMarksForReview() could
+ * write the MarksRecord batch and its own new MarksSubmission row in one
+ * shared transaction), but this function's own "before"/"after"
+ * getMarksEntryWorkspace() reads are plain, non-tx reads by necessity
+ * (getMarksEntryWorkspace() composes half a dozen repositories, none of
+ * which accept `tx`) — live-verified against the real Neon connection,
+ * issuing those plain reads while an outer interactive transaction was
+ * still open corrupted the shared `pg` connection (`@prisma/adapter-pg`
+ * has no isolation between a `db.$transaction()`'s own reserved
+ * connection and ordinary `db.*` queries made mid-transaction). Reverted;
+ * submitMarksForReview() instead handles its own narrow crash window with
+ * an idempotent recovery check, not a shared transaction — see its own
+ * comment.
  */
 export async function submitMarksGrid(
   input: MarksGridSaveInput,

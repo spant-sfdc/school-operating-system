@@ -12,6 +12,38 @@ Nothing yet.
 
 ---
 
+## [0.41.0] — 2026-08-01 — Sprint E9: Result Review, Correction & Publication (Principal/Admin)
+
+The administrative academic-control layer turning teacher-submitted marks into official school results: Teacher Submission → Principal/Admin Review → Return for Correction OR Approve → Examination Publication. See [D-055](./DECISIONS.md#d-055--sprint-e9-result-review-correction--publication-principaladmin-a-new-markssubmission-aggregate-at-examsubjectschedule-section-grain--not-per-student-not-per-examination-a-single-extended-examinationstatus-state-machine-published-not-a-second-one-return-for-correction-reopens-sprint-e8s-own-lock-by-reverting-marksrecord-to-draft-zero-new-lock-logic-a-live-verified-transaction-safety-defect-in-the-original-cross-boundary-atomicity-design-was-found-and-reverted-in-favor-of-idempotent-recovery).
+
+### Added
+
+- `prisma/schema.prisma` — Migration 007c: `MarksSubmission` model + `MarksSubmissionStatus` enum (`SUBMITTED`/`RETURNED`/`APPROVED`); `ExaminationStatus` gains `PUBLISHED`; `Examination` gains `publishedByUserId`/`publishedAt`. Applied for real to the live Neon database.
+- `src/repositories/marksSubmission/` — `findMarksSubmissionByScheduleAndSection()`, `findMarksSubmissionById()`, `listMarksSubmissionsForExamination()`, `countMarksSubmissionsByStatusForExamination()`, `createMarksSubmission()`, `markMarksSubmissionResubmitted()`, `returnMarksSubmission()`, `approveMarksSubmission()`.
+- `src/lib/validations/resultReview.ts` — Zod schemas for Return/Approve/Publish inputs.
+- `src/services/resultReview/` — `submitMarksForReview()`, `returnForCorrection()`, `approveSubmission()` (`marksSubmission.service.ts`); `getPublicationReadiness()`, `publishExaminationResults()` (`examinationPublication.service.ts`); `getExaminationReviewWorkspace()`; `getResultReviewDashboard()`.
+- `src/lib/authorization/permissions.ts` — `canViewResultReview()`, `canReviewSubmissions()`, `canPublishExaminationResults()`.
+- `src/app/admin/examinations/page.tsx` (Result Dashboard), `src/app/admin/examinations/[id]/{page.tsx,actions.ts}` (Examination Review Workspace + Publish), `src/app/admin/examinations/[id]/submissions/[scheduleId]/[sectionId]/{page.tsx,actions.ts}` (Submission Review — Approve/Return).
+
+### Updated
+
+- `src/services/marks/marksEntryWorkspace.service.ts` — `MarksEntryWorkspaceDTO`/`getMarksEntryWorkspace()` extended with `submissionStatus`/`returnReason`/`resubmissionCount`; `locked` now also true once `Examination.status === "PUBLISHED"`.
+- `src/services/examination/dto/examination.dto.ts` — `ExaminationDTO` gains `publishedByUserId`/`publishedAt`.
+- `src/app/teacher/marks/[scheduleId]/[sectionId]/actions.ts` — Submit now calls `submitMarksForReview()` (not the raw E8 action), reusing the same error-catching pattern.
+- `src/app/teacher/marks/[scheduleId]/[sectionId]/page.tsx` — submission-state banners (Submitted/Returned-with-reason/Approved/Published).
+- `src/services/principal/principalWorkspace.{dto,service}.ts` — new `resultsOverview` section (Awaiting Review/Returned/Ready to Publish/Published), two new operational alerts, one new "Results" Quick Action.
+- `src/app/admin/page.tsx` — new Results Overview section.
+
+### Verified
+
+- 37 direct-service-call scenarios against real seeded data (Meera Joshi/Mathematics/Class 1-A) plus synthetic Examination/ExamTerm/ExamSubjectSchedule fixtures: submit, unauthorized-teacher rejection, duplicate-submission rejection, Dashboard/Review Workspace correctness, premature-publication rejection, Return for Correction (record reverted to `DRAFT`, E8 lock reopened), resubmission, Approve (record stays `SUBMITTED`), post-approval edit rejection, full-workflow Publish, post-publication edit rejection, and a full `AuditLog` trail — all passed.
+- Regression: `/admin/examinations`, `/admin/examinations/[id]`, `/teacher/marks`, `/admin`, `/admin/students`, `/admin/teachers`, `/admin/audit`, `/teacher/attendance` all correctly redirected unauthenticated (307, no 500s).
+- `pnpm exec tsc --noEmit`, `pnpm run lint`, `pnpm run format:check`, `pnpm run build`, `pnpm exec prisma validate` all pass clean.
+- Repository/Service boundary greps: zero repository-imports-repository violations; no direct Prisma model access outside repositories.
+- A transaction-safety defect (a shared-transaction design corrupting the `@prisma/adapter-pg` connection) was found and fixed during this verification pass — see D-055.
+
+---
+
 ## [0.40.0] — 2026-08-01 — Sprint E8: Marks Entry Workspace (Teacher)
 
 The first real academic workflow — the complete Teacher Marks Entry path (Dashboard → My Examinations → Select Subject → Grid → Save Draft → Submit), stopping exactly at submission. See [D-054](./DECISIONS.md#d-054--sprint-e8-marks-entry-workspace-teacher-marksrecord-references-enrollment-not-student-not-examination-one-row-per-enrollment-examsubjectschedule--assessment-components-are-a-named-explicitly-undecided-product-decision-not-a-silently-invented-field-teacherassignment-remains-the-sole-authority-broader-than-attendances-class-teacher-only-scope-a-new-per-row-status-column-is-the-one-genuine-considered-departure-from-attendancerecords-own-derived-only-precedent).

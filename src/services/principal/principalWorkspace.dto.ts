@@ -29,6 +29,20 @@ export interface StudentOverviewDTO {
   inactiveStudents: number;
 }
 
+// Sprint E9 — a school-wide roll-up over the new Result Review Dashboard
+// (resultReviewDashboard.service.ts), not a reimplementation of it: sums
+// each examination's own already-computed counts so Principal 360 can
+// answer "does anything need my attention today" for Results the same
+// way it already does for Attendance, without the Principal opening
+// /admin/examinations first.
+export interface ResultsOverviewDTO {
+  awaitingReviewCount: number;
+  returnedCount: number;
+  readyToPublishCount: number;
+  publishedCount: number;
+  totalActiveExaminations: number;
+}
+
 export type AlertSeverity = "error" | "warning" | "info";
 
 export interface OperationalAlertDTO {
@@ -58,6 +72,7 @@ export interface PrincipalWorkspaceDTO {
   attendanceOverview: AttendanceOverviewDTO;
   teacherOverview: TeacherOverviewDTO;
   studentOverview: StudentOverviewDTO;
+  resultsOverview: ResultsOverviewDTO;
   alerts: OperationalAlertDTO[];
   quickActions: PrincipalQuickActionDTO[];
   recentActivity: WorkspacePlaceholderDTO;

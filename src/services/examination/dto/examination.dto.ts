@@ -15,6 +15,10 @@ export interface ExaminationDTO {
   status: ExaminationStatus;
   startDate: string | null;
   endDate: string | null;
+  // Sprint E9 — set together, once, by publishExaminationResults(). Both
+  // null until then.
+  publishedByUserId: string | null;
+  publishedAt: string | null;
 }
 
 type ExaminationWithRelations = Examination & {
@@ -38,5 +42,7 @@ export function toExaminationDTO(examination: ExaminationWithRelations): Examina
     status: examination.status,
     startDate: examination.startDate ? examination.startDate.toISOString() : null,
     endDate: examination.endDate ? examination.endDate.toISOString() : null,
+    publishedByUserId: examination.publishedByUserId,
+    publishedAt: examination.publishedAt ? examination.publishedAt.toISOString() : null,
   };
 }

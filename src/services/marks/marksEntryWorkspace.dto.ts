@@ -1,4 +1,4 @@
-import type { MarksRecordStatus } from "@/generated/prisma/enums";
+import type { MarksRecordStatus, MarksSubmissionStatus } from "@/generated/prisma/enums";
 
 export interface MarksGridRowDTO {
   enrollmentId: string;
@@ -41,6 +41,14 @@ export interface MarksEntryWorkspaceDTO {
   // section's own submission state). See marksEntryWorkspace.service.ts's
   // own comment on Sprint E7's status lifecycle.
   examinationInactive: boolean;
+  // Sprint E9 — null when no MarksSubmission exists yet for this
+  // (schedule, section) (nothing submitted, or reverted to DRAFT after a
+  // Return). The Teacher Grid surfaces this directly — "Returned for
+  // Correction" plus `returnReason` must be obvious on the Teacher's own
+  // Marks pages, per this sprint's own explicit requirement.
+  submissionStatus: MarksSubmissionStatus | null;
+  returnReason: string | null;
+  resubmissionCount: number;
 }
 
 export function buildMarksEntrySummary(

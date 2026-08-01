@@ -133,6 +133,7 @@ model School {
   examinations       Examination[]
   gradeScales        GradeScale[]
   marksRecords       MarksRecord[]
+  marksSubmissions   MarksSubmission[]
 
   @@map("schools")
 }
@@ -372,6 +373,7 @@ model Section {
   enrollments        Enrollment[]
   teacherAssignments TeacherAssignment[]
   attendanceSessions AttendanceSession[]
+  marksSubmissions   MarksSubmission[]
 
   @@index([schoolClassId, academicYearId, name])
   @@map("sections")
@@ -793,11 +795,21 @@ model AttendanceRecord {
 // declarative syntax can express is declared inline; none needed raw SQL
 // this time (no partial-unique-index requirement in this model group).
 
+// Sprint E9 adds PUBLISHED (COMPLETED -> PUBLISHED -> ARCHIVED) — the same
+// single state machine extended by one value, not a second competing one.
+// "Publish Results" (this value) is deliberately distinct from Sprint E7's
+// own publishExamination() (DRAFT/SCHEDULED -> ACTIVE, "make the exam
+// live for teachers") — a genuine terminology collision worth naming: the
+// two "publish" verbs mean different things at different lifecycle
+// points, so this sprint's own transition function is named
+// publishExaminationResults(), never reusing E7's own publishExamination()
+// name or logic. See docs/DECISIONS.md's Sprint E9 entry.
 enum ExaminationStatus {
   DRAFT
   SCHEDULED
   ACTIVE
   COMPLETED
+  PUBLISHED
   ARCHIVED
 
   @@map("examination_status")
@@ -843,25 +855,33 @@ model ExamTerm {
 }
 
 model Examination {
-  id             String            @id @default(cuid())
-  schoolId       String            @map("school_id")
-  school         School            @relation(fields: [schoolId], references: [schoolId])
-  examTermId     String            @map("exam_term_id")
-  examTerm       ExamTerm          @relation(fields: [examTermId], references: [id])
-  academicYearId String            @map("academic_year_id")
-  academicYear   AcademicYear      @relation(fields: [academicYearId], references: [id])
-  schoolClassId  String            @map("school_class_id")
-  schoolClass    SchoolClass       @relation(fields: [schoolClassId], references: [id])
-  name           String
-  description    String?
-  status         ExaminationStatus @default(DRAFT)
-  startDate      DateTime?         @map("start_date") @db.Timestamptz(3)
-  endDate        DateTime?         @map("end_date") @db.Timestamptz(3)
-  deletedAt      DateTime?         @map("deleted_at") @db.Timestamptz(3)
-  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                String            @id @default(cuid())
+  schoolId          String            @map("school_id")
+  school            School            @relation(fields: [schoolId], references: [schoolId])
+  examTermId        String            @map("exam_term_id")
+  examTerm          ExamTerm          @relation(fields: [examTermId], references: [id])
+  academicYearId    String            @map("academic_year_id")
+  academicYear      AcademicYear      @relation(fields: [academicYearId], references: [id])
+  schoolClassId     String            @map("school_class_id")
+  schoolClass       SchoolClass       @relation(fields: [schoolClassId], references: [id])
+  name              String
+  description       String?
+  status            ExaminationStatus @default(DRAFT)
+  startDate         DateTime?         @map("start_date") @db.Timestamptz(3)
+  endDate           DateTime?         @map("end_date") @db.Timestamptz(3)
+  // Sprint E9 — set together, once, by publishExaminationResults(); never
+  // touched by any other transition. Mirrors TransferCertificate's own
+  // issuedByUserId/dateOfIssue precedent (a terminal action's actor+time
+  // recorded directly on the row, not left to AuditLog alone) — Q6/Q15's
+  // own "unambiguous, queryable, authoritative" requirement.
+  publishedByUserId String?           @map("published_by_user_id")
+  publishedAt       DateTime?         @map("published_at") @db.Timestamptz(3)
+  deletedAt         DateTime?         @map("deleted_at") @db.Timestamptz(3)
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   subjectSchedules ExamSubjectSchedule[]
+  marksSubmissions MarksSubmission[]
 
   // Composite index, not a unique constraint — see the migration-header
   // comment above and DATABASE_REVIEW.md § 10.
@@ -891,7 +911,8 @@ model ExamSubjectSchedule {
   createdAt       DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  marksRecords MarksRecord[]
+  marksRecords     MarksRecord[]
+  marksSubmissions MarksSubmission[]
 
   @@unique([examinationId, subjectId])
   @@map("exam_subject_schedules")
@@ -984,6 +1005,79 @@ model MarksRecord {
   @@index([examSubjectScheduleId])
   @@index([schoolId])
   @@map("marks_records")
+}
+
+// --- Migration 007c: Result Review & Publication -----------------------------
+// Sprint E9. MarksSubmission — see docs/DECISIONS.md's Sprint E9 entry.
+//
+// Sprint E8 represented "submission" purely as per-row MarksRecord.status
+// (DRAFT/SUBMITTED) plus a derived "every enrolled student SUBMITTED"
+// check, with no first-class row for the submission event itself — an
+// AuditLog entry was the only trace of "who submitted, when." That was
+// sufficient for Sprint E8's own scope (submission was the terminal
+// action), but Sprint E9's own required facts — reviewStatus, reviewedBy,
+// reviewedAt, returnReason, resubmissionCount — have no existing home:
+// they are facts about the WHOLE (ExamSubjectSchedule, Section) batch, not
+// about any individual student's mark, so duplicating them onto every
+// MarksRecord row would be wasteful and semantically wrong (N copies of
+// one fact). MarksSubmission is the minimal, justified new aggregate this
+// creates — one row per (examSubjectScheduleId, sectionId), the exact
+// granularity Sprint E8's own submitMarks()/submitMarksGrid() already
+// treat as one atomic unit of work (see marksEntryWorkspace.service.ts's
+// own "one section at a time" comment) — not per-student (too fine, would
+// make Principal Review absurdly granular) and not per-ExamSubjectSchedule
+// alone (too coarse — a class-wide schedule spans multiple sections, each
+// submitted and reviewed independently).
+//
+// `examinationId` is denormalized directly from
+// examSubjectSchedule.examinationId — the same deliberate hot-lookup
+// pattern TeacherAssignment.academicYearId/Examination.academicYearId
+// already established (docs/database/DATABASE_REVIEW.md § 7) — the
+// Principal Dashboard's own completeness/blocking-issues computation
+// (Q18's own scale requirement) queries MarksSubmission grouped by
+// examinationId+status directly, never scanning MarksRecord, so this
+// column is load-bearing for that query shape, not just convenience.
+//
+// No PUBLISHED value on MarksSubmissionStatus — publication is an
+// Examination-level fact (Q7/Q10), recorded once on Examination itself
+// (`status`/`publishedByUserId`/`publishedAt` above), never duplicated
+// here — "one authoritative source for every lifecycle fact" (this
+// sprint's own explicit Q4 instruction).
+
+enum MarksSubmissionStatus {
+  SUBMITTED
+  RETURNED
+  APPROVED
+
+  @@map("marks_submission_status")
+}
+
+model MarksSubmission {
+  id                    String                @id @default(cuid())
+  schoolId              String                @map("school_id")
+  school                School                @relation(fields: [schoolId], references: [schoolId])
+  examinationId         String                @map("examination_id")
+  examination           Examination           @relation(fields: [examinationId], references: [id])
+  examSubjectScheduleId String                @map("exam_subject_schedule_id")
+  examSubjectSchedule   ExamSubjectSchedule   @relation(fields: [examSubjectScheduleId], references: [id])
+  sectionId             String                @map("section_id")
+  section               Section               @relation(fields: [sectionId], references: [id])
+  status                MarksSubmissionStatus @default(SUBMITTED)
+  submittedByUserId     String                @map("submitted_by_user_id")
+  submittedAt           DateTime              @map("submitted_at") @db.Timestamptz(3)
+  reviewedByUserId      String?               @map("reviewed_by_user_id")
+  reviewedAt            DateTime?             @map("reviewed_at") @db.Timestamptz(3)
+  returnReason          String?               @map("return_reason")
+  // Incremented each time a RETURNED submission is resubmitted — "how many
+  // times has this gone back and forth," Q6's own named requirement. Zero
+  // on first submission, never decremented.
+  resubmissionCount     Int                   @default(0) @map("resubmission_count")
+  createdAt             DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([examSubjectScheduleId, sectionId])
+  @@index([examinationId, status])
+  @@map("marks_submissions")
 }
 
 // --- Migration 008: Framework Configuration ---------------------------------

@@ -189,3 +189,30 @@ export function canEnterMarks(subject: AuthorizationSubject): boolean {
 export function canSubmitMarks(subject: AuthorizationSubject): boolean {
   return subject.accessLevel === "ADMIN" || subject.accessLevel === "TEACHER";
 }
+
+// Result Review, Correction & Publication (Sprint E9, Epic E) — the
+// administrative review layer sitting strictly above Marks Entry:
+// reviewing, returning, approving, and publishing submitted marks is not
+// a Teacher capability at all (a Teacher submits; only Principal/
+// Administrator review what was submitted) — per this sprint's own Q12,
+// Principal and Administrator are both Role rows sharing
+// `accessLevel: ADMIN` (D-028/D-029, the same reasoning
+// canViewPrincipalWorkspace() already applied), so there is no
+// distinction to encode here beyond the ordinary Admin-only check. Kept
+// as three named functions, not one collapsed check, matching this
+// file's own established view/act/publish granularity (e.g.
+// canManageExaminations() vs. canViewExaminations()) — publishing is
+// deliberately its own permission, not folded into
+// canReviewSubmissions(), since it is a stronger, less-reversible action
+// (Q9: no unpublish mechanism exists) than an individual Approve/Return.
+export function canViewResultReview(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN";
+}
+
+export function canReviewSubmissions(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN";
+}
+
+export function canPublishExaminationResults(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN";
+}

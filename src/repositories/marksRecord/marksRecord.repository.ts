@@ -89,3 +89,21 @@ export async function markMarksRecordsSubmitted(
     data: { status: "SUBMITTED" },
   });
 }
+
+// Sprint E9's own "Return for Correction" wiring point — the mirror image
+// of markMarksRecordsSubmitted() above. Reverting every record in this
+// (schedule, section) scope back to DRAFT is what re-opens Sprint E8's own
+// already-built teacher-edit guard (saveDraftMarks()'s own
+// resolveAndValidateBatch() rejects writes only when status === SUBMITTED)
+// — no new teacher-side lock-check logic was written for this sprint;
+// this one repository call is the entire mechanism.
+export async function revertMarksRecordsToDraft(
+  examSubjectScheduleId: string,
+  sectionId: string,
+  tx: Prisma.TransactionClient = db,
+) {
+  return tx.marksRecord.updateMany({
+    where: { examSubjectScheduleId, enrollment: { sectionId } },
+    data: { status: "DRAFT" },
+  });
+}

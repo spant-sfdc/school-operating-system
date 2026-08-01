@@ -67,7 +67,7 @@ export default async function MarksEntryPage({
           className="mb-6 rounded-md border border-emerald-600/30 bg-emerald-600/5 p-4 text-sm"
         >
           Marks submitted for {workspace.summary.submittedCount}/{workspace.summary.totalStudents}{" "}
-          students. This section is now locked.
+          students — sent for Principal/Admin review.
         </div>
       ) : null}
       {saved === "1" && submitted !== "1" ? (
@@ -84,6 +84,37 @@ export default async function MarksEntryPage({
         >
           This examination is not currently ACTIVE (status: {workspace.examinationStatus}) — marks
           entry is closed.
+        </div>
+      ) : null}
+
+      {workspace.examinationStatus === "PUBLISHED" ? (
+        <div
+          role="status"
+          className="mb-6 rounded-md border border-emerald-600/30 bg-emerald-600/5 p-3 text-sm"
+        >
+          Results for this examination have been published — marks are final.
+        </div>
+      ) : workspace.submissionStatus === "RETURNED" ? (
+        <div
+          role="alert"
+          className="border-destructive/30 bg-destructive/5 mb-6 rounded-md border p-3 text-sm"
+        >
+          <p className="font-medium">
+            Returned for correction
+            {workspace.resubmissionCount > 0 ? ` (attempt ${workspace.resubmissionCount + 1})` : ""}
+          </p>
+          <p className="mt-1">{workspace.returnReason}</p>
+        </div>
+      ) : workspace.submissionStatus === "SUBMITTED" ? (
+        <div role="status" className="mb-6 rounded-md border p-3 text-sm">
+          Submitted — awaiting Principal/Admin review.
+        </div>
+      ) : workspace.submissionStatus === "APPROVED" ? (
+        <div
+          role="status"
+          className="mb-6 rounded-md border border-emerald-600/30 bg-emerald-600/5 p-3 text-sm"
+        >
+          Approved by Principal/Admin.
         </div>
       ) : null}
 
