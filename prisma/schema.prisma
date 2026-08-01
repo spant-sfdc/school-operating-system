@@ -129,6 +129,9 @@ model School {
   teachers           Teacher[]
   attendanceSessions AttendanceSession[]
   importBatches      ImportBatch[]
+  examTerms          ExamTerm[]
+  examinations       Examination[]
+  gradeScales        GradeScale[]
 
   @@map("schools")
 }
@@ -153,6 +156,8 @@ model AcademicYear {
   sections           Section[]
   enrollments        Enrollment[]
   teacherAssignments TeacherAssignment[]
+  examTerms          ExamTerm[]
+  examinations       Examination[]
 
   @@unique([schoolId, label])
   @@index([schoolId, isCurrent])
@@ -344,7 +349,8 @@ model SchoolClass {
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  sections Section[]
+  sections     Section[]
+  examinations Examination[]
 
   @@index([schoolId, name])
   @@map("school_classes")
@@ -380,7 +386,8 @@ model Subject {
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  teacherAssignments TeacherAssignment[]
+  teacherAssignments   TeacherAssignment[]
+  examSubjectSchedules ExamSubjectSchedule[]
 
   @@index([schoolId, name])
   @@map("subjects")
@@ -584,8 +591,9 @@ model Teacher {
   createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  qualifications TeacherQualification[]
-  assignments    TeacherAssignment[]
+  qualifications       TeacherQualification[]
+  assignments          TeacherAssignment[]
+  examSubjectSchedules ExamSubjectSchedule[]
 
   @@map("teachers")
 }
@@ -714,6 +722,194 @@ model AttendanceRecord {
   @@unique([sessionId, enrollmentId])
   @@index([enrollmentId])
   @@map("attendance_records")
+}
+
+// --- Migration 007: Examination Foundation ----------------------------------
+// Sprint E7. ExamTerm, Examination, ExamSubjectSchedule, GradeScale — see
+// docs/DECISIONS.md's Sprint E7 entry and the Sprint E6 Examination
+// Architecture Certification it builds from. This is Foundation only —
+// MarksRecord, ReportCard, PromotionRecord, TransferCertificate remain
+// unbuilt (Sprint E8+), per Sprint E7's own explicit "Do NOT build Marks
+// Entry" scope.
+//
+// Every core relationship here matches the certified design exactly:
+// ExamTerm belongs to AcademicYear; Examination belongs to ExamTerm +
+// SchoolClass + AcademicYear; ExamSubjectSchedule belongs to Examination +
+// Subject, unique per (examinationId, subjectId) — see
+// docs/database/DATABASE_REVIEW.md § 10. GradeScale belongs to School,
+// referenced by nothing yet (MarksRecord, its future consumer, doesn't
+// exist this sprint).
+//
+// `schoolId` is carried directly on ExamTerm/Examination (not left purely
+// transitive via AcademicYear/SchoolClass), matching Enrollment's and
+// AttendanceSession's own precedent — cheap now, avoids a join for the
+// common "list all exam terms/examinations for this school" query.
+// Examination also carries `academicYearId` directly even though it's
+// derivable via examTermId -> ExamTerm.academicYearId — the same
+// deliberate denormalization TeacherAssignment.academicYearId already
+// uses relative to section.academicYearId, for the same hot-lookup reason
+// (docs/database/DATABASE_REVIEW.md § 7).
+//
+// Examination gains a `status` lifecycle (DRAFT -> SCHEDULED -> ACTIVE ->
+// COMPLETED -> ARCHIVED) and `startDate`/`endDate`/`description` — real,
+// additive elaboration beyond the certified illustrative schema's bare
+// `examTermId, classId, name, deletedAt` shape (DATABASE_SCHEMA.md § 8),
+// not a redesign of the certified relationships. `@@index([examTermId,
+// schoolClassId])` matches DATABASE_REVIEW.md § 10's own composite-index
+// recommendation exactly — deliberately NOT a unique constraint (that
+// recommendation names an index, not a uniqueness rule), since a school
+// legitimately re-running an examination for one class is a real,
+// unblocked scenario.
+//
+// ExamSubjectSchedule.teacherId is nullable and informational, not
+// authoritative — mirrors AttendanceSession.markedByUserId's own
+// precedent (a "who is responsible" fact recorded on the row, separate
+// from the authorization check). It intentionally does NOT become the
+// marks-entry authority: a SchoolClass can have multiple Sections with
+// different subject teachers via different TeacherAssignment rows, so a
+// single teacherId here can't represent "the" authorized teacher across
+// every section. TeacherAssignment(teacherId, sectionId, subjectId,
+// academicYearId) remains the sole authority Sprint E8's marks-entry
+// authorization will check directly — this field is never consulted for
+// that decision, only for display (e.g., "Ms. Sharma — Science").
+//
+// GradeScale.type (MARKS_BASED | GRADE_BASED | HYBRID) is a deliberate,
+// additive elaboration beyond the certified illustrative schema, which
+// only described GradeScale as "optionally referenced... a school may run
+// marks-only with no grade scale" (DOMAIN_MODEL.md § 8.4) — implying
+// "marks-only" is the *absence* of any GradeScale row. Making MARKS_BASED
+// an explicit, nameable GradeScale type instead lets a Principal see "Class
+// 3-8: Percentage Only" as a real School Settings entry, not silent
+// absence a future Admin might mistake for a configuration gap. `bands`
+// stays required-shaped JSON but is a valid empty array when
+// type = MARKS_BASED — no separate nullable-bands branch needed.
+//
+// No unique/scoped-index gaps carried forward here — Section/Subject's own
+// once-illustrative-only unique constraints (DATABASE_REVIEW.md § 15) were
+// already hand-added via raw SQL in their own migration; this migration
+// follows the same discipline: every constraint below that Prisma's
+// declarative syntax can express is declared inline; none needed raw SQL
+// this time (no partial-unique-index requirement in this model group).
+
+enum ExaminationStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+
+  @@map("examination_status")
+}
+
+enum ExamSubjectScheduleStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+
+  @@map("exam_subject_schedule_status")
+}
+
+enum GradeScaleType {
+  MARKS_BASED
+  GRADE_BASED
+  HYBRID
+
+  @@map("grade_scale_type")
+}
+
+model ExamTerm {
+  id               String       @id @default(cuid())
+  schoolId         String       @map("school_id")
+  school           School       @relation(fields: [schoolId], references: [schoolId])
+  academicYearId   String       @map("academic_year_id")
+  academicYear     AcademicYear @relation(fields: [academicYearId], references: [id])
+  // "Unit Test 1" | "Half-Yearly" | "Annual" | "FA1" | ... — deliberately a
+  // free string, never an enum: term structure genuinely varies school to
+  // school and year to year, per DOMAIN_MODEL.md § 8.1.
+  name             String
+  sortOrder        Int          @map("sort_order")
+  weightagePercent Int?         @map("weightage_percent")
+  deletedAt        DateTime?    @map("deleted_at") @db.Timestamptz(3)
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  examinations Examination[]
+
+  @@unique([academicYearId, name])
+  @@index([schoolId, academicYearId])
+  @@map("exam_terms")
+}
+
+model Examination {
+  id             String            @id @default(cuid())
+  schoolId       String            @map("school_id")
+  school         School            @relation(fields: [schoolId], references: [schoolId])
+  examTermId     String            @map("exam_term_id")
+  examTerm       ExamTerm          @relation(fields: [examTermId], references: [id])
+  academicYearId String            @map("academic_year_id")
+  academicYear   AcademicYear      @relation(fields: [academicYearId], references: [id])
+  schoolClassId  String            @map("school_class_id")
+  schoolClass    SchoolClass       @relation(fields: [schoolClassId], references: [id])
+  name           String
+  description    String?
+  status         ExaminationStatus @default(DRAFT)
+  startDate      DateTime?         @map("start_date") @db.Timestamptz(3)
+  endDate        DateTime?         @map("end_date") @db.Timestamptz(3)
+  deletedAt      DateTime?         @map("deleted_at") @db.Timestamptz(3)
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  subjectSchedules ExamSubjectSchedule[]
+
+  // Composite index, not a unique constraint — see the migration-header
+  // comment above and DATABASE_REVIEW.md § 10.
+  @@index([examTermId, schoolClassId])
+  @@index([schoolId, academicYearId])
+  @@map("examinations")
+}
+
+model ExamSubjectSchedule {
+  id              String                    @id @default(cuid())
+  examinationId   String                    @map("examination_id")
+  examination     Examination               @relation(fields: [examinationId], references: [id])
+  subjectId       String                    @map("subject_id")
+  subject         Subject                   @relation(fields: [subjectId], references: [id])
+  // Informational only — see the migration-header comment above.
+  // TeacherAssignment remains the sole marks-entry authority.
+  teacherId       String?                   @map("teacher_id")
+  teacher         Teacher?                  @relation(fields: [teacherId], references: [id])
+  examDate        DateTime?                 @map("exam_date") @db.Timestamptz(3)
+  maxMarks        Int                       @map("max_marks")
+  passMarks       Int                       @map("pass_marks")
+  durationMinutes Int?                      @map("duration_minutes")
+  room            String?
+  instructions    String?
+  status          ExamSubjectScheduleStatus @default(SCHEDULED)
+  deletedAt       DateTime?                 @map("deleted_at") @db.Timestamptz(3)
+  createdAt       DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([examinationId, subjectId])
+  @@map("exam_subject_schedules")
+}
+
+model GradeScale {
+  id        String         @id @default(cuid())
+  schoolId  String         @map("school_id")
+  school    School         @relation(fields: [schoolId], references: [schoolId])
+  name      String
+  type      GradeScaleType @default(GRADE_BASED)
+  // [{ minPercent: 91, maxPercent: 100, grade: "A1", gradePoint: 10 }, ...]
+  // — a valid empty array when type = MARKS_BASED. Non-overlapping bands
+  // is a service-layer validation rule (BUSINESS_RULES.md § 5), not a
+  // constraint the JSON shape itself enforces.
+  bands     Json
+  deletedAt DateTime?      @map("deleted_at") @db.Timestamptz(3)
+  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([schoolId, name])
+  @@map("grade_scales")
 }
 
 // --- Migration 008: Framework Configuration ---------------------------------

@@ -12,6 +12,28 @@ Nothing yet.
 
 ---
 
+## [0.39.0] — 2026-08-01 — Sprint E7: Examination Foundation
+
+The data model and business services later Examination sprints will consume — ExamTerm, Examination, ExamSubjectSchedule, GradeScale, built exactly to the Sprint E6 Examination Architecture Certification's own hierarchy. No Marks Entry, Report Cards, Promotion, or UI — Foundation only. See [D-053](./DECISIONS.md#d-053--sprint-e7-examination-foundation-examterm-examination-examsubjectschedule-gradescale-built-exactly-to-the-sprint-e6-certifications-own-hierarchy-schedulesubjectexam-validates-teacherassignment-as-the-sole-marks-entry-authority-never-storing-it-as-one-examination-status-is-a-real-5-state-machine-draft--scheduled-derived-automatically-on-first-subject-scheduled).
+
+### Added
+
+- `prisma/schema.prisma` — Migration 007: `ExamTerm`, `Examination`, `ExamSubjectSchedule`, `GradeScale` models; `ExaminationStatus`, `ExamSubjectScheduleStatus`, `GradeScaleType` enums. Applied for real to the live Neon database.
+- `src/repositories/{examTerm,examination,examSubjectSchedule,gradeScale}/` — full repository layer, following every existing convention (optional `tx` passthrough, no repository-imports-repository, no `create()+include`).
+- `src/lib/validations/examination.ts` — Zod schemas for every write, including `passMarks <= maxMarks` and grade-band shape validation.
+- `src/services/examination/` — `createExamTerm()`, `deactivateExamTerm()`, `createExamination()`, `publishExamination()`, `completeExamination()`, `archiveExamination()`, `scheduleSubjectExam()`, `createGradeScale()`, `deactivateGradeScale()`, plus one list/get read per entity for Sprint E8 to consume.
+- `src/lib/authorization/permissions.ts` — `canManageExaminations()` (Admin-only), `canViewExaminations()` (Admin + Teacher), matching `PERMISSION_MATRIX.md § 6` exactly.
+
+### Verified
+
+- Live, via a 23-step lifecycle script against real seeded data: `ExamTerm` create + duplicate-name rejection; `Examination` create (DRAFT); `scheduleSubjectExam()` correctly rejecting an unassigned teacher (Arjun Nair, no Mathematics `TeacherAssignment`) and correctly accepting an assigned one (Meera Joshi), with the parent `Examination` auto-bumping DRAFT→SCHEDULED on the first subject; the full status chain SCHEDULED→ACTIVE→COMPLETED→ARCHIVED, each out-of-sequence transition correctly rejected; `ExamTerm` deactivation correctly blocked while an `Examination` still references it; `GradeScale` creation (both `MARKS_BASED` and `GRADE_BASED`) and duplicate-name rejection; a full audit trail (10 real `AuditLog` entries, correctly typed); then complete cleanup, confirmed zero residue.
+- Regression: `TeacherAssignment` (6), `Student` (5), `AttendanceRecord` (5) counts unchanged from before this sprint.
+- `pnpm exec tsc --noEmit`, `pnpm run lint`, `pnpm run format:check`, `pnpm run build`, `pnpm exec prisma validate` all pass clean.
+- Repository/Service boundary greps: zero repository-imports-repository violations; no direct Prisma model access in any new service file outside `db.$transaction`.
+- One benign Prisma-internal query-decomposition warning (multi-relation `connect()` fan-out, the same class as D-032/D-046's own `create()+include` finding) traced via `--trace-warnings` to Prisma's own `query-interpreter.ts`; confirmed non-fatal on two independent live runs — named, not fixed.
+
+---
+
 ## [0.38.0] — 2026-07-23 — Sprint E5: Teacher Management (Administration) & Teacher Domain Freeze
 
 Brought Teacher Management to parity with Student Management — a real Teacher Directory and Admin Teacher 360, reusing every prior sprint's own services and conventions unchanged, plus one genuine architectural defect found and fixed. See [D-052](./DECISIONS.md#d-052--sprint-e5-teacher-management-administration--teacher-domain-freeze-teacher-directory--admin-teacher-360-reuse-directorysearch-conventions-not-students-own-function-and-every-prior-sprints-own-services-unchanged-one-genuine-asymmetry-found-and-fixed--reactivateteacher-the-missing-counterpart-to-sprint-4s-deactivateteacher-workload-computed-fresh-on-every-render-never-stored-teacher-domain-architecture-declared-frozen).

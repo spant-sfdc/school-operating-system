@@ -144,3 +144,21 @@ export function canViewTeacherWorkspace(subject: AuthorizationSubject): boolean 
 export function canViewPrincipalWorkspace(subject: AuthorizationSubject): boolean {
   return subject.accessLevel === "ADMIN";
 }
+
+// Examination Foundation (Sprint E7, Epic E) — per
+// docs/domain/PERMISSION_MATRIX.md § 6: "ExamTerm/Examination/
+// ExamSubjectSchedule | Admin: CRUD | Teacher: R" and "GradeScale | Admin:
+// CRUD | Teacher: R" — every write (create/publish/complete/archive/
+// deactivate) is Admin-only; both Admin and Teacher may read. Kept as two
+// named functions, not one collapsed check, matching this file's own
+// established view-vs-manage split (canViewStudents/canManageStudents,
+// canViewAttendance/canTakeAttendance) — Sprint E8's own Marks Entry
+// workspace will need canViewExaminations() to read schedules without
+// granting Teacher any write access to the Examination structure itself.
+export function canManageExaminations(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN";
+}
+
+export function canViewExaminations(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN" || subject.accessLevel === "TEACHER";
+}
