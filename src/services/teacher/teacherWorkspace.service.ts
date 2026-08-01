@@ -5,6 +5,7 @@ import { listEnrollmentsBySection } from "@/repositories/enrollment";
 import { getAttendanceHome } from "@/services/attendance/attendanceDashboard.service";
 import { searchAttendanceHistory } from "@/services/attendance/attendanceHistory.service";
 import { searchStudentDirectory } from "@/services/student/studentDirectory.service";
+import { getTeacherExaminationsHome } from "@/services/marks/teacherExaminations.service";
 import type {
   TeacherWorkspaceDTO,
   TeacherAssignmentRowDTO,
@@ -27,7 +28,10 @@ function toAssignmentRow(
   };
 }
 
-function buildQuickActions(quickResumeSectionId: string | null): TeacherQuickActionDTO[] {
+function buildQuickActions(
+  quickResumeSectionId: string | null,
+  hasActiveExaminations: boolean,
+): TeacherQuickActionDTO[] {
   return [
     {
       id: "take-attendance",
@@ -49,13 +53,18 @@ function buildQuickActions(quickResumeSectionId: string | null): TeacherQuickAct
       href: "/teacher/attendance/history",
       enabled: true,
     },
+    // Sprint E8 — flips this from a reserved, disabled placeholder to a
+    // real link, always pointing at the "My Examinations" list
+    // (/teacher/marks) rather than deep-linking a specific schedule here
+    // (that deep link already exists as /teacher/marks's own own Quick
+    // Resume button) — kept enabled even with zero active examinations so
+    // a teacher can see the honest "no active examinations" empty state
+    // rather than a disabled button with no explanation.
     {
       id: "enter-marks",
-      label: "Enter Marks",
-      href: null,
-      enabled: false,
-      reason:
-        "Examination/Marks Entry is a planned future capability — see EPIC_ROADMAP.md Epic E.",
+      label: hasActiveExaminations ? "Enter Marks" : "My Examinations",
+      href: "/teacher/marks",
+      enabled: true,
     },
     {
       id: "generate-reports",
@@ -109,7 +118,7 @@ export async function getTeacherWorkspace(
     }
   }
 
-  const [attendanceHome, history, studentDirectoryResult] = await Promise.all([
+  const [attendanceHome, history, studentDirectoryResult, examinationsHome] = await Promise.all([
     getAttendanceHome(teacherId, schoolId),
     searchAttendanceHistory(teacherId, schoolId, {}),
     assignedSectionIds.length > 0
@@ -125,6 +134,7 @@ export async function getTeacherWorkspace(
           pageSize: 20,
           academicYearId: currentAcademicYear.id,
         }),
+    getTeacherExaminationsHome(teacherId, schoolId),
   ]);
   // Dashboard shows a short preview; the full, paginated list lives at
   // /teacher/students (this sprint's own "View Students" Quick Action),
@@ -154,6 +164,9 @@ export async function getTeacherWorkspace(
       available: false,
       reason: "Timeline is a planned future capability — see docs/domain/EVENT_MODEL.md.",
     },
-    quickActions: buildQuickActions(attendanceHome.quickResumeSectionId),
+    quickActions: buildQuickActions(
+      attendanceHome.quickResumeSectionId,
+      examinationsHome.rows.length > 0,
+    ),
   };
 }

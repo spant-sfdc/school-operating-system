@@ -162,3 +162,30 @@ export function canManageExaminations(subject: AuthorizationSubject): boolean {
 export function canViewExaminations(subject: AuthorizationSubject): boolean {
   return subject.accessLevel === "ADMIN" || subject.accessLevel === "TEACHER";
 }
+
+// Marks Entry (Sprint E8, Epic E) — per docs/domain/PERMISSION_MATRIX.md
+// § 6: "MarksRecord | Admin: RU (all, via Reports) | Teacher: CRU
+// (assigned subjects/sections only)" — deliberately a *different* scope
+// from Attendance's own canTakeAttendance() (Class-Teacher-only): any
+// Teacher with a matching TeacherAssignment for the specific subject may
+// enter marks, not only a section's Class Teacher. Section/subject-level
+// scoping is enforced server-side in
+// src/services/marks/marksEntryWorkspace.service.ts's own
+// assertCanEnterMarksForScheduleAndSection() — these functions only
+// answer "does this role participate at all," the same division of
+// responsibility every other view-vs-manage pair in this file already
+// uses. Admin's own "RU, all, via Reports" is not wired to any UI this
+// sprint (Reports is out of scope) — canEnterMarks()/canSubmitMarks()
+// still admit ADMIN for consistency and as a ready extension point, the
+// same reasoning canOverrideAttendanceLock() was reserved unwired.
+export function canViewMarks(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN" || subject.accessLevel === "TEACHER";
+}
+
+export function canEnterMarks(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN" || subject.accessLevel === "TEACHER";
+}
+
+export function canSubmitMarks(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN" || subject.accessLevel === "TEACHER";
+}

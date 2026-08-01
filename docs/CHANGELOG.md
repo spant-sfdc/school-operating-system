@@ -12,6 +12,33 @@ Nothing yet.
 
 ---
 
+## [0.40.0] — 2026-08-01 — Sprint E8: Marks Entry Workspace (Teacher)
+
+The first real academic workflow — the complete Teacher Marks Entry path (Dashboard → My Examinations → Select Subject → Grid → Save Draft → Submit), stopping exactly at submission. See [D-054](./DECISIONS.md#d-054--sprint-e8-marks-entry-workspace-teacher-marksrecord-references-enrollment-not-student-not-examination-one-row-per-enrollment-examsubjectschedule--assessment-components-are-a-named-explicitly-undecided-product-decision-not-a-silently-invented-field-teacherassignment-remains-the-sole-authority-broader-than-attendances-class-teacher-only-scope-a-new-per-row-status-column-is-the-one-genuine-considered-departure-from-attendancerecords-own-derived-only-precedent).
+
+### Added
+
+- `prisma/schema.prisma` — Migration 007b: `MarksRecord` model, `MarksRecordStatus` enum (`DRAFT`/`SUBMITTED`). Applied for real to the live Neon database.
+- `src/repositories/marksRecord/` — `findMarksRecordByEnrollmentAndSchedule()`, `findMarksRecordById()`, `listMarksRecordsForScheduleAndSection()`, `upsertMarksRecord()`, `markMarksRecordsSubmitted()`.
+- `src/lib/validations/marks.ts` — Zod schemas for draft-save and submit batches.
+- `src/services/marks/` — `saveDraftMarks()`, `submitMarks()` (atomic primitives, mirroring `attendance.service.ts`'s own shape), `getMarksEntryWorkspace()`, `saveDraftMarksGrid()`, `submitMarksGrid()` (workspace composition, mirroring `attendanceSessionWorkspace.service.ts`), `getTeacherExaminationsHome()` ("My Examinations").
+- `src/services/examination/examSubjectSchedule.service.ts` — `getExamSubjectScheduleById()` (additive extension).
+- `src/lib/authorization/permissions.ts` — `canViewMarks()`, `canEnterMarks()`, `canSubmitMarks()`.
+- `src/app/teacher/marks/page.tsx`, `src/app/teacher/marks/[scheduleId]/[sectionId]/{page.tsx,actions.ts,MarksGrid.tsx}`.
+
+### Updated
+
+- `src/services/teacher/teacherWorkspace.service.ts` — the reserved "Enter Marks" Quick Action placeholder (Sprint E3) is now a real, enabled link to `/teacher/marks`.
+
+### Verified
+
+- Live, via a minted Class/Subject Teacher session and 9 direct-service scenarios against real seeded data: Teacher Dashboard's "Enter Marks" quick action correctly enabled and linked; `/teacher/marks` correctly listed exactly one authorized (Examination, Subject, Section) row with a working Quick Resume; the Grid correctly rendered the section's real roster; a valid draft save; a `marksObtained > maxMarks` rejection; an unauthorized-teacher rejection (a teacher with no matching `TeacherAssignment`, both via direct service call and a real HTTP 404); a successful submission; a duplicate-submission rejection (already locked); a post-submission-edit rejection; and a locked-examination rejection (`SCHEDULED`, not `ACTIVE`) — all produced the correct, distinctly-typed error. A real audit trail (`CREATE`→`UPDATE` on `MarksRecord`, one `MarksSubmitted` summary event) confirmed. All test data cleaned up, confirmed zero residue.
+- Regression: Attendance Home, Teacher Dashboard, Student Workspace, Admin Dashboard, Admin Students, Admin Teachers all confirmed unaffected (200); an unauthenticated request to `/teacher/marks` correctly redirected (307).
+- `pnpm exec tsc --noEmit`, `pnpm run lint`, `pnpm run format:check`, `pnpm run build`, `pnpm exec prisma validate` all pass clean.
+- Repository/Service boundary greps: zero repository-imports-repository violations; no direct Prisma model access outside repositories.
+
+---
+
 ## [0.39.0] — 2026-08-01 — Sprint E7: Examination Foundation
 
 The data model and business services later Examination sprints will consume — ExamTerm, Examination, ExamSubjectSchedule, GradeScale, built exactly to the Sprint E6 Examination Architecture Certification's own hierarchy. No Marks Entry, Report Cards, Promotion, or UI — Foundation only. See [D-053](./DECISIONS.md#d-053--sprint-e7-examination-foundation-examterm-examination-examsubjectschedule-gradescale-built-exactly-to-the-sprint-e6-certifications-own-hierarchy-schedulesubjectexam-validates-teacherassignment-as-the-sole-marks-entry-authority-never-storing-it-as-one-examination-status-is-a-real-5-state-machine-draft--scheduled-derived-automatically-on-first-subject-scheduled).

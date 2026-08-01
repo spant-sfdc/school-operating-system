@@ -132,6 +132,7 @@ model School {
   examTerms          ExamTerm[]
   examinations       Examination[]
   gradeScales        GradeScale[]
+  marksRecords       MarksRecord[]
 
   @@map("schools")
 }
@@ -533,6 +534,7 @@ model Enrollment {
   updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   attendanceRecords AttendanceRecord[]
+  marksRecords      MarksRecord[]
 
   @@unique([studentId, academicYearId])
   @@unique([sectionId, rollNumber])
@@ -889,6 +891,8 @@ model ExamSubjectSchedule {
   createdAt       DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  marksRecords MarksRecord[]
+
   @@unique([examinationId, subjectId])
   @@map("exam_subject_schedules")
 }
@@ -910,6 +914,76 @@ model GradeScale {
 
   @@unique([schoolId, name])
   @@map("grade_scales")
+}
+
+// --- Migration 007b: Marks Entry ---------------------------------------------
+// Sprint E8. MarksRecord only — the other half of MIGRATION_PLAN.md's own
+// reserved "008 — Marks & report cards" slot (`ReportCard`) remains
+// unbuilt, per this sprint's own explicit "Do NOT build Report Cards"
+// scope. See docs/DECISIONS.md's Sprint E8 entry.
+//
+// References Enrollment, not Student — the identical reasoning
+// AttendanceRecord already established (docs/database/DATABASE_REVIEW.md
+// § 14): a detained student's two years of marks in the same class must
+// stay structurally separated by which year's Enrollment they belong to,
+// not reconstructed from date ranges.
+//
+// `id` uses a time-ordered UUIDv7, matching AttendanceRecord's own
+// precedent for the first genuinely high-volume table in each migration
+// group (docs/database/DATABASE_REVIEW.md § 10/§ 11). `schoolId` is
+// carried directly, matching Enrollment's/AttendanceSession's own
+// precedent. The extra `@@index([examSubjectScheduleId])` matches
+// DATABASE_REVIEW.md § 10's own named requirement — the existing unique
+// constraint leads with enrollmentId, so "all marks for this exam+subject
+// across a class" needs its own index.
+//
+// `status` (DRAFT | SUBMITTED) is a deliberate, additive elaboration
+// beyond the certified illustrative schema (DATABASE_SCHEMA.md § 8 has no
+// status field on MarksRecord) — necessary because this sprint's own
+// "Save Draft" vs. "Submit Marks" requirement needs a real state, not a
+// derived one. This is a genuine, considered departure from
+// AttendanceRecord's own precedent (no per-record status; "locked" is
+// derived entirely from record existence) — Marks Entry's own "Submit" is
+// a deliberate, explicit teacher action with immutability afterward, not
+// merely "every row got a value," so a derived-only state cannot express
+// it. See docs/DECISIONS.md's Sprint E8 entry for the full reasoning.
+//
+// `grade` is modeled (matching DATABASE_SCHEMA.md § 8's own illustrative
+// shape) but never populated by any service this sprint — deriving it
+// from GradeScale is a Report Card concern, explicitly out of this
+// sprint's scope; the column exists so a future Report Card sprint
+// doesn't need a schema change to start writing to it.
+
+enum MarksRecordStatus {
+  DRAFT
+  SUBMITTED
+
+  @@map("marks_record_status")
+}
+
+model MarksRecord {
+  id                    String              @id @default(uuid(7))
+  schoolId              String              @map("school_id")
+  school                School              @relation(fields: [schoolId], references: [schoolId])
+  enrollmentId          String              @map("enrollment_id")
+  enrollment            Enrollment          @relation(fields: [enrollmentId], references: [id])
+  examSubjectScheduleId String              @map("exam_subject_schedule_id")
+  examSubjectSchedule   ExamSubjectSchedule @relation(fields: [examSubjectScheduleId], references: [id])
+  marksObtained         Decimal
+  // Derived, re-derivable, not authoritative over marksObtained — see the
+  // migration-header comment above. Always null this sprint.
+  grade                 String?
+  status                MarksRecordStatus   @default(DRAFT)
+  enteredByUserId       String              @map("entered_by_user_id")
+  lastEditedByUserId    String?             @map("last_edited_by_user_id")
+  lastEditedAt          DateTime?           @map("last_edited_at") @db.Timestamptz(3)
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([enrollmentId, examSubjectScheduleId])
+  @@index([examSubjectScheduleId])
+  @@index([schoolId])
+  @@map("marks_records")
 }
 
 // --- Migration 008: Framework Configuration ---------------------------------

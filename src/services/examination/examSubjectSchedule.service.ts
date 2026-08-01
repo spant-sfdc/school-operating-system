@@ -171,3 +171,16 @@ export async function listSubjectSchedulesForExamination(
   const schedules = await listSubjectSchedulesForExaminationRows(examinationId);
   return schedules.map(toExamSubjectScheduleDTO);
 }
+
+/**
+ * Reads one ExamSubjectSchedule by id — the read Sprint E8 (Marks Entry)
+ * uses to resolve maxMarks/passMarks and its own parent examinationId
+ * before validating a marks submission. Added this sprint (E8), pure
+ * extension — no existing function's behavior changed.
+ */
+export async function getExamSubjectScheduleById(
+  id: string,
+): Promise<ExamSubjectScheduleDTO | null> {
+  const schedule = await findExamSubjectScheduleById(id);
+  return schedule ? toExamSubjectScheduleDTO(schedule) : null;
+}
