@@ -9,6 +9,38 @@ const MARKS_RECORD_INCLUDE = {
   enrollment: { include: { student: true } },
 } satisfies Prisma.MarksRecordInclude;
 
+// Sprint E10 — Academic History's own single read: every MarksRecord
+// belonging to any of this student's enrollments (all years), scoped to
+// `examination.status === "PUBLISHED"` at the database level, never
+// filtered in application code. This is the authoritative boundary
+// (Sprint E10's own Q1) — a PUBLISHED Examination's own publish gate
+// (Sprint E9's getPublicationReadiness()) already required every
+// (schedule, section) pair to be an APPROVED MarksSubmission before the
+// status flip could happen, so re-checking MarksSubmission.status here
+// would be pure duplication, not additional safety. One query, not one
+// per record or per examination — bounded by
+// [enrollments x subjects-per-exam] cardinality for a single student
+// (small, even across 10-15 years), never a table scan.
+const PUBLISHED_MARKS_RECORD_INCLUDE = {
+  examSubjectSchedule: {
+    include: {
+      subject: true,
+      examination: { include: { examTerm: true } },
+    },
+  },
+} satisfies Prisma.MarksRecordInclude;
+
+export async function listPublishedMarksRecordsByEnrollments(enrollmentIds: string[]) {
+  if (enrollmentIds.length === 0) return [];
+  return db.marksRecord.findMany({
+    where: {
+      enrollmentId: { in: enrollmentIds },
+      examSubjectSchedule: { examination: { status: "PUBLISHED" } },
+    },
+    include: PUBLISHED_MARKS_RECORD_INCLUDE,
+  });
+}
+
 // The pre-transaction existence/previous-value check — resolved by the
 // service before opening db.$transaction(), per
 // docs/engineering/ENGINEERING_PRINCIPLES.md § 4, mirroring

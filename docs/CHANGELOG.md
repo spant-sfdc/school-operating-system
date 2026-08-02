@@ -12,6 +12,31 @@ Nothing yet.
 
 ---
 
+## [0.42.0] — 2026-08-02 — Sprint E10: Student Academic History & Published Results Workspace
+
+The authoritative, internal-staff-only academic-history experience — Student identity → Enrollment history → Published examinations → Subject results, using ONLY published results. No new database table. See [D-056](./DECISIONS.md#d-056--sprint-e10-student-academic-history-zero-new-database-tables--enrollment--marksrecord--examinationstatus--published-already-fully-answer-the-question-examinationstatus--published-alone-not-a-second-markssubmissionstatus--approved-check-is-the-one-authoritative-boundary-grade-is-honestly-unavailable-not-fabricated-since-no-schema-path-connects-gradescale-to-any-examination).
+
+### Added
+
+- `src/repositories/enrollment/enrollment.repository.ts` — `listEnrollmentsByStudent()`.
+- `src/repositories/marksRecord/marksRecord.repository.ts` — `listPublishedMarksRecordsByEnrollments()`, scoped to `Examination.status === "PUBLISHED"` at the database level.
+- `src/services/student/academicHistory.{dto,service}.ts` — `getStudentAcademicHistory()`, `buildAcademicSummary()`.
+- `src/app/admin/students/[id]/academic-history/page.tsx`, `src/app/teacher/students/[id]/academic-history/page.tsx` (a thin wrapper, same current-section-only scoping as the existing Teacher Student Profile).
+
+### Updated
+
+- `src/services/student/studentWorkspace.{dto,service}.ts` — the long-standing `academicSnapshot` placeholder (Sprint E1) is now real: published-examination count, latest result, subjects passed/requiring attention. New "View Academic History" Quick Action.
+- `src/app/admin/students/[id]/page.tsx`, `src/app/teacher/students/[id]/page.tsx` — render the real Academic Snapshot.
+
+### Verified
+
+- 21 direct-service-call scenarios against real seeded data plus a full two-examination E7–E9 lifecycle: SUBMITTED/RETURNED/APPROVED-but-unpublished marks each confirmed absent from Academic History; PUBLISHED marks appear with correct subject/marks/max/pass/Pass-Fail/year/class/section; correct chronological ordering within a year; correct "most recently published" summary selection; honest empty state for a student with no history — all passed.
+- Regression: `/admin`, `/admin/students`, `/admin/students/[id]/academic-history`, `/admin/teachers`, `/admin/examinations`, `/admin/audit`, `/admin/imports`, `/teacher`, `/teacher/students`, `/teacher/students/[id]/academic-history`, `/teacher/attendance`, `/teacher/marks` all correctly redirected unauthenticated (307, no 500s).
+- `pnpm exec tsc --noEmit`, `pnpm run lint`, `pnpm run format:check`, `pnpm run build`, `pnpm exec prisma validate` all pass clean.
+- No `prisma/schema.prisma` change — Database Review confirmed existing `Student`/`Enrollment`/`Examination`/`ExamSubjectSchedule`/`MarksRecord` already answer the full workflow.
+
+---
+
 ## [0.41.0] — 2026-08-01 — Sprint E9: Result Review, Correction & Publication (Principal/Admin)
 
 The administrative academic-control layer turning teacher-submitted marks into official school results: Teacher Submission → Principal/Admin Review → Return for Correction OR Approve → Examination Publication. See [D-055](./DECISIONS.md#d-055--sprint-e9-result-review-correction--publication-principaladmin-a-new-markssubmission-aggregate-at-examsubjectschedule-section-grain--not-per-student-not-per-examination-a-single-extended-examinationstatus-state-machine-published-not-a-second-one-return-for-correction-reopens-sprint-e8s-own-lock-by-reverting-marksrecord-to-draft-zero-new-lock-logic-a-live-verified-transaction-safety-defect-in-the-original-cross-boundary-atomicity-design-was-found-and-reverted-in-favor-of-idempotent-recovery).

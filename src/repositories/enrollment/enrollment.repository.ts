@@ -37,6 +37,20 @@ export async function listEnrollmentsBySection(sectionId: string, academicYearId
   });
 }
 
+// Sprint E10 — "every year this student was enrolled," the Academic
+// History Workspace's own year-by-year grouping. Ordered most-recent
+// first (AcademicYear.startDate desc) since that's how a Principal reads
+// a student's journey — newest year on top, matching Student 360's own
+// "current" framing. One student has at most a handful of years' worth of
+// rows (10-15 at the outside), never a high-volume table.
+export async function listEnrollmentsByStudent(studentId: string) {
+  return db.enrollment.findMany({
+    where: { studentId },
+    include: ENROLLMENT_INCLUDE,
+    orderBy: { academicYear: { startDate: "desc" } },
+  });
+}
+
 // Deliberately no `include` here — matches
 // src/repositories/teacherAssignment/teacherAssignment.repository.ts's
 // createTeacherAssignment(): Prisma's query engine decomposes a

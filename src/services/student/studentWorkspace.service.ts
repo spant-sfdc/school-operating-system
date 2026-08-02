@@ -5,14 +5,28 @@ import { countAttendanceByEnrollment } from "@/repositories/attendanceRecord";
 import { toStudentDTO } from "@/services/student/student.dto";
 import { toEnrollmentDTO } from "@/services/student/enrollment.dto";
 import { toGuardianDTO } from "@/services/student/guardian.dto";
+import { getStudentAcademicHistory } from "@/services/student/academicHistory.service";
+import { buildAcademicSummary } from "@/services/student/academicHistory.dto";
 import {
   buildAttendanceSummary,
   type StudentWorkspaceDTO,
   type QuickActionDTO,
 } from "@/services/student/studentWorkspace.dto";
 
-function buildQuickActions(): QuickActionDTO[] {
+function buildQuickActions(studentId: string): QuickActionDTO[] {
   return [
+    {
+      id: "academic-history",
+      label: "View Academic History",
+      // Real, working link — composes getStudentAcademicHistory() (Sprint
+      // E10), the same service this workspace's own Academic Summary
+      // panel already reads. Admin-path only, mirroring "Import History"'s
+      // own already-hardcoded-to-admin precedent below — the Teacher
+      // Student Profile page links to its own /teacher-scoped equivalent
+      // directly in its own template, not through this shared list.
+      href: `/admin/students/${studentId}/academic-history`,
+      enabled: true,
+    },
     {
       id: "edit-student",
       label: "Edit Student",
@@ -108,6 +122,16 @@ export async function getStudentWorkspace(
         reason: "This student has no enrollment for the current academic year.",
       } as const);
 
+  const academicHistory = await getStudentAcademicHistory(studentId, schoolId);
+  const academicSummary = academicHistory ? buildAcademicSummary(academicHistory) : null;
+  const academicSnapshot =
+    academicSummary && academicSummary.publishedExaminationCount > 0
+      ? ({ available: true, ...academicSummary } as const)
+      : ({
+          available: false,
+          reason: "No published examination results exist for this student yet.",
+        } as const);
+
   return {
     student: toStudentDTO(student),
     currentEnrollment: currentEnrollment ? toEnrollmentDTO(currentEnrollment) : null,
@@ -118,10 +142,7 @@ export async function getStudentWorkspace(
       isAuthorizedForPickup: link.isAuthorizedForPickup,
     })),
     attendanceSummary,
-    academicSnapshot: {
-      available: false,
-      reason: "Examinations aren't built yet — see Epic E's own Examination slice.",
-    },
+    academicSnapshot,
     recentActivity: {
       available: false,
       reason: "Timeline is a planned future capability — see docs/domain/EVENT_MODEL.md.",
@@ -130,6 +151,6 @@ export async function getStudentWorkspace(
       available: false,
       reason: "Document management is a planned future capability.",
     },
-    quickActions: buildQuickActions(),
+    quickActions: buildQuickActions(studentId),
   };
 }

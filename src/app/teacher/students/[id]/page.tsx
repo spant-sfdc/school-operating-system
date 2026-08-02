@@ -47,7 +47,7 @@ export default async function TeacherStudentProfilePage({
     notFound();
   }
 
-  const { student, currentEnrollment, guardians, attendanceSummary } = workspace;
+  const { student, currentEnrollment, guardians, attendanceSummary, academicSnapshot } = workspace;
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
@@ -110,6 +110,37 @@ export default async function TeacherStudentProfilePage({
               <Row label="Absent" value={String(attendanceSummary.absentCount)} />
             </dl>
           )}
+        </section>
+
+        <section className="rounded-md border p-4">
+          <h2 className="mb-3 text-sm font-semibold">Academic Snapshot</h2>
+          {academicSnapshot.available === false ? (
+            <p className="text-muted-foreground text-sm">{academicSnapshot.reason}</p>
+          ) : (
+            <dl className="flex flex-col gap-2 text-sm">
+              <Row
+                label="Published Examinations"
+                value={String(academicSnapshot.publishedExaminationCount)}
+              />
+              <Row
+                label="Latest Result"
+                value={
+                  academicSnapshot.latestExamination
+                    ? `${academicSnapshot.latestExamination.examinationName} (${academicSnapshot.latestExamination.examTermName})`
+                    : "—"
+                }
+              />
+              <Row label="Subjects Passed" value={String(academicSnapshot.latestSubjectsPassed)} />
+            </dl>
+          )}
+          <div className="mt-3">
+            <Link
+              href={`/teacher/students/${id}/academic-history`}
+              className="text-primary text-sm underline"
+            >
+              View Academic History →
+            </Link>
+          </div>
         </section>
       </div>
     </main>

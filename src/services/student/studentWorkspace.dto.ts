@@ -2,6 +2,7 @@ import type { AttendanceStatus, RelationshipType } from "@/generated/prisma/enum
 import type { StudentDTO } from "@/services/student/student.dto";
 import type { EnrollmentDTO } from "@/services/student/enrollment.dto";
 import type { GuardianDTO } from "@/services/student/guardian.dto";
+import type { AcademicSummaryDTO } from "@/services/student/academicHistory.dto";
 
 export interface StudentGuardianSummaryDTO {
   guardian: GuardianDTO;
@@ -46,10 +47,19 @@ export interface StudentWorkspaceDTO {
   currentEnrollment: EnrollmentDTO | null;
   guardians: StudentGuardianSummaryDTO[];
   attendanceSummary: AttendanceSummaryDTO | WorkspacePlaceholderDTO;
-  academicSnapshot: WorkspacePlaceholderDTO;
+  // Sprint E10 — real data at last: composes getStudentAcademicHistory()
+  // (academicHistory.service.ts), never re-queries MarksRecord/Examination
+  // itself. `available: false` only when the student has zero PUBLISHED
+  // results anywhere in their history — an honest empty state, not a
+  // fabricated zero.
+  academicSnapshot: AcademicSummaryWorkspaceDTO | WorkspacePlaceholderDTO;
   recentActivity: WorkspacePlaceholderDTO;
   documents: WorkspacePlaceholderDTO;
   quickActions: QuickActionDTO[];
+}
+
+export interface AcademicSummaryWorkspaceDTO extends AcademicSummaryDTO {
+  available: true;
 }
 
 // The commonly-cited default per docs/domain/BUSINESS_RULES.md § 4

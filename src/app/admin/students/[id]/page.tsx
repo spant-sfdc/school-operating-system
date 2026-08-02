@@ -118,7 +118,29 @@ export default async function StudentProfilePage({ params }: { params: Promise<{
 
         <section className="rounded-md border p-4">
           <h2 className="mb-3 text-sm font-semibold">Academic Snapshot</h2>
-          <p className="text-muted-foreground text-sm">{academicSnapshot.reason}</p>
+          {academicSnapshot.available === false ? (
+            <p className="text-muted-foreground text-sm">{academicSnapshot.reason}</p>
+          ) : (
+            <dl className="flex flex-col gap-2 text-sm">
+              <Row
+                label="Published Examinations"
+                value={String(academicSnapshot.publishedExaminationCount)}
+              />
+              <Row
+                label="Latest Result"
+                value={
+                  academicSnapshot.latestExamination
+                    ? `${academicSnapshot.latestExamination.examinationName} (${academicSnapshot.latestExamination.examTermName})`
+                    : "—"
+                }
+              />
+              <Row label="Subjects Passed" value={String(academicSnapshot.latestSubjectsPassed)} />
+              <Row
+                label="Subjects Requiring Attention"
+                value={String(academicSnapshot.latestSubjectsRequiringAttention)}
+              />
+            </dl>
+          )}
         </section>
 
         <section className="rounded-md border p-4">
