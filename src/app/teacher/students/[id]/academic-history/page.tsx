@@ -102,12 +102,20 @@ export default async function TeacherStudentAcademicHistoryPage({
                 <div className="flex flex-col gap-4">
                   {year.examinations.map((examination) => (
                     <div key={examination.examinationId} className="rounded-md border p-4">
-                      <h3 className="mb-3 font-medium">
-                        {examination.examinationName}{" "}
-                        <span className="text-muted-foreground font-normal">
-                          ({examination.examTermName})
-                        </span>
-                      </h3>
+                      <div className="mb-3 flex items-baseline justify-between">
+                        <h3 className="font-medium">
+                          {examination.examinationName}{" "}
+                          <span className="text-muted-foreground font-normal">
+                            ({examination.examTermName})
+                          </span>
+                        </h3>
+                        <Link
+                          href={`/teacher/students/${id}/report-cards/${examination.examinationId}`}
+                          className="text-primary text-xs underline"
+                        >
+                          View Report Card
+                        </Link>
+                      </div>
                       <div className="overflow-x-auto">
                         <table className="w-full min-w-96 border-collapse text-sm">
                           <thead>

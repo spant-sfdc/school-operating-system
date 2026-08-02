@@ -41,6 +41,26 @@ export async function listPublishedMarksRecordsByEnrollments(enrollmentIds: stri
   });
 }
 
+// Sprint E12 — the Report Card's own single read: one student's one
+// examination's worth of PUBLISHED subjects, not the full multi-year
+// scan listPublishedMarksRecordsByEnrollments() does. Same authoritative
+// `examination.status === "PUBLISHED"` boundary, enforced at the database
+// level, per Sprint E10's own Q1 answer — never re-checked in application
+// code, never re-validated against MarksSubmission.status (Sprint E9's
+// own publish gate already structurally guarantees it).
+export async function listPublishedMarksRecordsForEnrollmentAndExamination(
+  enrollmentId: string,
+  examinationId: string,
+) {
+  return db.marksRecord.findMany({
+    where: {
+      enrollmentId,
+      examSubjectSchedule: { examinationId, examination: { status: "PUBLISHED" } },
+    },
+    include: PUBLISHED_MARKS_RECORD_INCLUDE,
+  });
+}
+
 // The pre-transaction existence/previous-value check — resolved by the
 // service before opening db.$transaction(), per
 // docs/engineering/ENGINEERING_PRINCIPLES.md § 4, mirroring

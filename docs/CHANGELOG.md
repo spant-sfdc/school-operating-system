@@ -12,6 +12,34 @@ Nothing yet.
 
 ---
 
+## [0.44.0] — 2026-08-02 — Sprint E12: Report Card Engine & Academic Result Presentation
+
+The formal academic-output layer: Published Results → Report Card Data → Academic Summary → Printable Report Card → Historical Report Card Access. An OUTPUT/PROJECTION over already-authoritative data, never a second academic record system. See [D-058](./DECISIONS.md#d-058--sprint-e12-report-card-engine--academic-result-presentation-reportcard-built-as-a-persisted-snapshot-per-docsdomaindomain_modelmd--86s-own-already-published-reasoning-should-not-silently-change-if-a-mark-is-corrected-afterward--genuinely-satisfying-this-sprints-own-prove-persistence-is-required-bar-not-an-exception-to-it-schoolclassgradescaleid-closes-sprint-e10s-own-named-gradescale-gap-the-assignment-dimension-business_rulesmd--5-already-specified-overall-percentage-is-now-legitimately-computable-reversing-sprint-e10s-own-more-conservative-conclusion-on-new-documentary-evidence-reporting_modelmd--3-sprint-e10-had-not-yet-read).
+
+### Added
+
+- `prisma/schema.prisma` — Migration 012: `ReportCard` model (a persisted snapshot, per `DOMAIN_MODEL.md § 8.6`'s own already-published design); `SchoolClass` +`gradeScaleId` (closes the GradeScale-assignment gap Sprint E10 named). Applied for real to the live Neon database.
+- `src/repositories/reportCard/` — `findReportCardByEnrollmentAndExamination()`, `findReportCardById()`, `createReportCard()`.
+- `src/repositories/marksRecord/marksRecord.repository.ts` — `listPublishedMarksRecordsForEnrollmentAndExamination()`.
+- `src/repositories/schoolClass/schoolClass.repository.ts` + `src/services/examination/gradeScale.service.ts` — `assignGradeScaleToSchoolClass()`.
+- `src/services/reportCard/` — `getStudentReportCard()`, `generateReportCard()` (idempotent), `resolveGrade()`.
+- `src/lib/authorization/permissions.ts` — `canViewReportCards()` (Admin + Teacher), `canManageReportCards()` (Admin-only).
+- `src/components/shared/{ReportCardDocument,PrintButton}.tsx` — shared, print-optimized rendering, reused by both Admin and Teacher routes.
+- `/admin/students/[id]/report-cards/[examinationId]` (view + Generate), `/teacher/students/[id]/report-cards/[examinationId]` (view-only, same scoping as Academic History).
+
+### Updated
+
+- `src/app/admin/students/[id]/academic-history/page.tsx`, `src/app/teacher/students/[id]/academic-history/page.tsx` — "View Report Card" link per published examination.
+
+### Verified
+
+- 30 direct-service-call scenarios against real seeded data plus a synthetic GradeScale/target Academic Year: unavailable while ACTIVE/COMPLETED-unpublished, fully correct once PUBLISHED (identity, subjects, marks, pass/fail, grade, overall percentage/grade, promotion), an honest empty state for missing marks (never a fabricated zero), wrong student/examination pairing rejected, idempotent Generate, frozen-snapshot read after generation, a real AuditLog entry — all passed.
+- Regression: 15 routes (including both new routes with invalid ids) all correctly redirected unauthenticated (307, no 500s).
+- `pnpm exec tsc --noEmit`, `pnpm run lint`, `pnpm run format:check`, `pnpm run build`, `pnpm exec prisma validate`, `pnpm exec prisma migrate status` all pass clean.
+- Repository/Service boundary greps: zero repository-imports-repository violations; no direct Prisma model access outside repositories (only `$transaction`).
+
+---
+
 ## [0.43.0] — 2026-08-02 — Sprint E11: Promotion Engine & Academic-Year Transition
 
 The end-of-year promotion decision workflow: Published Academic Record → Principal/Admin Review → Promote/Detain (with a required rationale) → Finalize → next-year Enrollment created, historical Enrollment preserved untouched. See [D-057](./DECISIONS.md#d-057--sprint-e11-promotion-engine--academic-year-transition-promotionrecord-built-almost-exactly-to-docsdomaindatabase_schemamds-own-already-published-illustrative-shape-no-persisted-recommendation-column--the-systems-own-suggestion-always-manual-review-required-since-no-school-has-ever-configured-a-real-promotionpolicy-is-never-written-anywhere-only-computed-fresh-and-displayed-one-atomic-transaction-per-student-never-a-batch-transaction-matching-transaction_boundariesmds-own-already-documented-boundary-target-classsection-selection-is-entirely-manual--no-sortorder-based-or-string-parsed-next-class-inference).

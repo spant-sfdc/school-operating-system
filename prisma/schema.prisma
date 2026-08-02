@@ -135,6 +135,7 @@ model School {
   marksRecords       MarksRecord[]
   marksSubmissions   MarksSubmission[]
   promotionRecords   PromotionRecord[]
+  reportCards        ReportCard[]
 
   @@map("schools")
 }
@@ -343,14 +344,26 @@ model VerificationToken {
 // the authoritative reference per its own stated purpose.
 
 model SchoolClass {
-  id        String    @id @default(cuid())
-  schoolId  String    @map("school_id")
-  school    School    @relation(fields: [schoolId], references: [schoolId])
-  name      String
-  sortOrder Int       @map("sort_order")
-  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id           String      @id @default(cuid())
+  schoolId     String      @map("school_id")
+  school       School      @relation(fields: [schoolId], references: [schoolId])
+  name         String
+  sortOrder    Int         @map("sort_order")
+  // Sprint E12 — the GradeScale-assignment gap Sprint E10 identified and
+  // named ("no schema path connects GradeScale to any Examination"),
+  // closed with the minimal additive relation the documentation itself
+  // already specifies: BUSINESS_RULES.md § 5's own "a school may run
+  // multiple GradeScales simultaneously... selected per class, not
+  // globally fixed" and DOMAIN_MODEL.md § 8.5's own "derives a grade from
+  // GradeScale if one is configured for the school/class" both name
+  // SchoolClass, not Examination/ExamTerm/AcademicYear, as the correct
+  // assignment dimension. Nullable — a marks-only class legitimately has
+  // no GradeScale, per GradeScaleType.MARKS_BASED's own precedent (D-053).
+  gradeScaleId String?     @map("grade_scale_id")
+  gradeScale   GradeScale? @relation(fields: [gradeScaleId], references: [id])
+  deletedAt    DateTime?   @map("deleted_at") @db.Timestamptz(3)
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   sections     Section[]
   examinations Examination[]
@@ -463,6 +476,7 @@ model Student {
   studentGuardians StudentGuardian[]
   enrollments      Enrollment[]
   promotionRecords PromotionRecord[]
+  reportCards      ReportCard[]
 
   @@unique([schoolId, admissionNumber])
   @@index([schoolId, status])
@@ -545,6 +559,7 @@ model Enrollment {
   // the same pair of models, per Prisma's own disambiguation requirement.
   promotedFrom      PromotionRecord?   @relation("PromotionSourceEnrollment")
   promotedTo        PromotionRecord?   @relation("PromotionResultingEnrollment")
+  reportCards       ReportCard[]
 
   @@unique([studentId, academicYearId])
   @@unique([sectionId, rollNumber])
@@ -890,6 +905,7 @@ model Examination {
 
   subjectSchedules ExamSubjectSchedule[]
   marksSubmissions MarksSubmission[]
+  reportCards      ReportCard[]
 
   // Composite index, not a unique constraint — see the migration-header
   // comment above and DATABASE_REVIEW.md § 10.
@@ -940,6 +956,10 @@ model GradeScale {
   deletedAt DateTime?      @map("deleted_at") @db.Timestamptz(3)
   createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  // Sprint E12 — the classes this scale is assigned to (see
+  // SchoolClass.gradeScale's own comment for the full reasoning).
+  schoolClasses SchoolClass[]
 
   @@unique([schoolId, name])
   @@map("grade_scales")
@@ -1179,6 +1199,62 @@ model PromotionRecord {
 
   @@index([schoolId, outcome])
   @@map("promotion_records")
+}
+
+// --- Migration 012: Report Card -----------------------------------------------
+// Sprint E12. ReportCard — see docs/DECISIONS.md's Sprint E12 entry.
+//
+// Built almost exactly to docs/domain/DOMAIN_MODEL.md § 8.6's own
+// already-published design: "A generated, stored snapshot... Modeled as a
+// real entity (not purely computed on-the-fly) because a report card,
+// once generated and shared with a family, should not silently change if
+// a mark is corrected afterward — a new version should be a new, dated
+// record." docs/domain/REPORTING_MODEL.md § 3's own "Student Report Card"
+// entry independently confirms the field name: "Directly reads the
+// stored ReportCard.snapshot, not a live re-aggregation."
+//
+// Scoped to (Enrollment, Examination) — the per-examination grain, the
+// smaller of the two grains that same DOMAIN_MODEL.md passage names ("one
+// Examination or one full AcademicYear") — a consolidated annual card is
+// named, not built, this sprint (Q3's own explicit "choose the smallest
+// useful scope" permission).
+//
+// `snapshot` is a JSON blob, not a set of child rows — deliberately
+// mirrors FrameworkConfig's own "write-once snapshot of what was true
+// when X happened" precedent (Sprint B3) rather than inventing a
+// ReportCardSubjectSnapshot child table; the snapshot's own shape is
+// identical to ReportCardDataDTO (src/services/reportCard/reportCard.dto.ts),
+// the same shape a not-yet-generated card composes live, so rendering
+// code never needs to know which state it's reading.
+//
+// `@@unique([enrollmentId, examinationId])` — generation is idempotent
+// ("get or create," not "decide," unlike PromotionRecord's own
+// reject-on-duplicate semantics): requesting a card twice is the same
+// artifact being requested again, not a second decision being recorded.
+// No regeneration/versioning workflow exists yet — DOMAIN_MODEL.md's own
+// "regeneration events should be tracked (superseding a prior snapshot)"
+// remains named, not built, this sprint (Q20).
+
+model ReportCard {
+  id                String      @id @default(cuid())
+  schoolId          String      @map("school_id")
+  school            School      @relation(fields: [schoolId], references: [schoolId])
+  studentId         String      @map("student_id")
+  student           Student     @relation(fields: [studentId], references: [id])
+  enrollmentId      String      @map("enrollment_id")
+  enrollment        Enrollment  @relation(fields: [enrollmentId], references: [id])
+  examinationId     String      @map("examination_id")
+  examination       Examination @relation(fields: [examinationId], references: [id])
+  // The frozen snapshot — ReportCardDataDTO's own shape, computed once at
+  // generation time. Never re-read live after this row exists.
+  snapshot          Json
+  generatedByUserId String      @map("generated_by_user_id")
+  generatedAt       DateTime    @default(now()) @map("generated_at") @db.Timestamptz(3)
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([enrollmentId, examinationId])
+  @@map("report_cards")
 }
 
 // --- Migration 008: Framework Configuration ---------------------------------

@@ -22,3 +22,15 @@ export async function createSchoolClass(
 ) {
   return tx.schoolClass.create({ data: input });
 }
+
+// Sprint E12 — the GradeScale-assignment write, closing the gap Sprint
+// E10 named. A plain single-field update, not a general SchoolClass edit
+// capability (no Admin UI exists for this yet — a named, unbuilt future
+// gap, matching TeacherAssignment's own create/reassign UI precedent).
+export async function assignGradeScaleToSchoolClass(
+  schoolClassId: string,
+  gradeScaleId: string | null,
+  tx: Prisma.TransactionClient = db,
+) {
+  return tx.schoolClass.update({ where: { id: schoolClassId }, data: { gradeScaleId } });
+}

@@ -81,11 +81,19 @@ export default async function StudentAcademicHistoryPage({
                             ({examination.examTermName})
                           </span>
                         </h3>
-                        {examination.publishedAt ? (
-                          <span className="text-muted-foreground text-xs">
-                            Published {new Date(examination.publishedAt).toLocaleDateString()}
-                          </span>
-                        ) : null}
+                        <div className="flex items-center gap-3">
+                          {examination.publishedAt ? (
+                            <span className="text-muted-foreground text-xs">
+                              Published {new Date(examination.publishedAt).toLocaleDateString()}
+                            </span>
+                          ) : null}
+                          <Link
+                            href={`/admin/students/${id}/report-cards/${examination.examinationId}`}
+                            className="text-primary text-xs underline"
+                          >
+                            View Report Card
+                          </Link>
+                        </div>
                       </div>
                       <div className="overflow-x-auto">
                         <table className="w-full min-w-96 border-collapse text-sm">

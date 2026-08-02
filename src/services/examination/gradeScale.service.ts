@@ -9,6 +9,10 @@ import {
   listGradeScalesBySchool as listGradeScalesBySchoolRows,
 } from "@/repositories/gradeScale";
 import {
+  findSchoolClassById,
+  assignGradeScaleToSchoolClass as assignGradeScaleToSchoolClassRow,
+} from "@/repositories/schoolClass";
+import {
   createGradeScaleInputSchema,
   deactivateGradeScaleInputSchema,
   type CreateGradeScaleInput,
@@ -115,4 +119,47 @@ export async function deactivateGradeScale(
 export async function listGradeScalesBySchool(schoolId: string): Promise<GradeScaleDTO[]> {
   const gradeScales = await listGradeScalesBySchoolRows(schoolId);
   return gradeScales.map(toGradeScaleDTO);
+}
+
+/**
+ * Assigns (or clears, with `gradeScaleId: null`) the GradeScale a
+ * SchoolClass's own Report Cards resolve grades against — Sprint E12's
+ * own closing of the gap Sprint E10 named ("no schema path connects
+ * GradeScale to any Examination"). Per BUSINESS_RULES.md § 5 and
+ * DOMAIN_MODEL.md § 8.5, the assignment dimension is SchoolClass, not
+ * Examination/ExamTerm/AcademicYear — a school picks one scale (or none)
+ * per class, not per exam. Validates both rows belong to the same school
+ * before writing; no Admin UI calls this yet (named, unbuilt future
+ * work), it exists so Sprint E12's own Report Card generation has a real
+ * assignment to read.
+ */
+export async function assignGradeScaleToSchoolClass(
+  schoolClassId: string,
+  gradeScaleId: string | null,
+  schoolId: string,
+  actorUserId: string,
+): Promise<void> {
+  const schoolClass = await findSchoolClassById(schoolClassId);
+  if (!schoolClass || schoolClass.schoolId !== schoolId) {
+    throw new Error(`School class not found: ${schoolClassId}`);
+  }
+  if (gradeScaleId) {
+    const gradeScale = await findGradeScaleById(gradeScaleId);
+    if (!gradeScale || gradeScale.schoolId !== schoolId) {
+      throw new Error(`Grade scale not found: ${gradeScaleId}`);
+    }
+  }
+
+  await db.$transaction(async (t) => {
+    await assignGradeScaleToSchoolClassRow(schoolClassId, gradeScaleId, t);
+    await writeAuditLog(t, {
+      schoolId,
+      entityType: "SchoolClass",
+      entityId: schoolClassId,
+      actorUserId,
+      action: "UPDATE",
+      beforeValue: { gradeScaleId: schoolClass.gradeScaleId },
+      afterValue: { gradeScaleId },
+    });
+  });
 }

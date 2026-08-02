@@ -230,3 +230,22 @@ export function canPublishExaminationResults(subject: AuthorizationSubject): boo
 export function canManagePromotions(subject: AuthorizationSubject): boolean {
   return subject.accessLevel === "ADMIN";
 }
+
+// Report Card Engine (Sprint E12, Epic E) — per PERMISSION_MATRIX.md § 4:
+// "ReportCard | Admin: CRUD | Teacher: R (assigned students only)."
+// Unlike Promotion (Teacher's own documented "R" was deliberately left
+// unbuilt this sprint), this sprint's own Phase 10 explicitly permits
+// building the Teacher read surface since the permission is already
+// documented — canViewReportCards() therefore admits both, with the
+// "assigned students only" scoping enforced the same way Sprint E3/E10
+// already established (a page-level check against the caller's own
+// current TeacherAssignment rows, not a query-level filter here).
+// Generating (persisting a snapshot) stays Admin-only — a genuine write,
+// matching "Admin: CRUD" vs. "Teacher: R" exactly.
+export function canViewReportCards(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN" || subject.accessLevel === "TEACHER";
+}
+
+export function canManageReportCards(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN";
+}
