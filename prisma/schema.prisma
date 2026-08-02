@@ -134,6 +134,7 @@ model School {
   gradeScales        GradeScale[]
   marksRecords       MarksRecord[]
   marksSubmissions   MarksSubmission[]
+  promotionRecords   PromotionRecord[]
 
   @@map("schools")
 }
@@ -461,6 +462,7 @@ model Student {
 
   studentGuardians StudentGuardian[]
   enrollments      Enrollment[]
+  promotionRecords PromotionRecord[]
 
   @@unique([schoolId, admissionNumber])
   @@index([schoolId, status])
@@ -520,7 +522,7 @@ model StudentGuardian {
 // docs/database/DATABASE_REVIEW.md § 1's "Identity vs. Fact" principle and
 // § 8. No delete mechanism of any kind, not even deletedAt: a promotion or
 // withdrawal creates a new Enrollment or sets status elsewhere
-// (PromotionRecord, out of this sprint's scope) — it never removes one.
+// (PromotionRecord, Sprint E11) — it never removes one.
 model Enrollment {
   id             String       @id @default(uuid(7))
   schoolId       String       @map("school_id")
@@ -537,6 +539,12 @@ model Enrollment {
 
   attendanceRecords AttendanceRecord[]
   marksRecords      MarksRecord[]
+  // Sprint E11 — a source Enrollment is "concluded" by at most one
+  // PromotionRecord (its own @@unique below); a resulting Enrollment is
+  // "created by" at most one PromotionRecord. Two distinct relations on
+  // the same pair of models, per Prisma's own disambiguation requirement.
+  promotedFrom      PromotionRecord?   @relation("PromotionSourceEnrollment")
+  promotedTo        PromotionRecord?   @relation("PromotionResultingEnrollment")
 
   @@unique([studentId, academicYearId])
   @@unique([sectionId, rollNumber])
@@ -1078,6 +1086,99 @@ model MarksSubmission {
   @@unique([examSubjectScheduleId, sectionId])
   @@index([examinationId, status])
   @@map("marks_submissions")
+}
+
+// --- Migration 011: Promotion -------------------------------------------------
+// Sprint E11. PromotionRecord — see docs/DECISIONS.md's Sprint E11 entry.
+// Fulfills MIGRATION_PLAN.md's conceptual "010 — Year-end progression" slot
+// in part: PromotionRecord only — TransferCertificate remains unbuilt, the
+// same partial-fulfillment shape Migration 007b left for MarksRecord vs.
+// ReportCard (D-054).
+//
+// The shape below matches docs/domain/DATABASE_SCHEMA.md's own
+// already-published illustrative PromotionRecord model almost exactly —
+// that document is explicitly "documentation, not code... the starting
+// reference, not a copy-paste source" (its own § 0 disclaimer), so
+// deviating where a real implementation genuinely needs to (adding
+// schoolId/studentId/createdAt/updatedAt, per that same document's own
+// "every model carries schoolId"/"every model has createdAt/updatedAt"
+// conventions, omitted from its illustrative blocks for brevity) is
+// exactly the "real implementation task decision" it says to expect, not
+// a departure from the design. `outcome` keeps all four illustrative
+// values (PROMOTED/DETAINED/TRANSFERRED_OUT/WITHDRAWN) — cheap to include
+// now, per the same schoolId-convention reasoning, even though this
+// sprint's own service/UI only ever writes PROMOTED/DETAINED (see
+// docs/DECISIONS.md's own Sprint E11 Q18 answer for why
+// TRANSFERRED_OUT/WITHDRAWN are reserved, not wired, this sprint).
+//
+// Deliberately NO systemRecommendedOutcome/overrideReason columns — the
+// system's own recommendation (always "Manual Review Required" this
+// sprint, since AcademicYear.promotionPolicy is never `configured: true`
+// on any real school today) is never persisted at all, computed fresh on
+// every read and shown in the UI only. This is what makes "the
+// recommendation must never silently become the official decision"
+// (this sprint's own Q5 requirement) trivially, structurally true: there
+// is no column for it to leak into. `basis` is always a human-supplied
+// classification (NoDetentionPolicy/ExamResult/ReExam, the exact three
+// values BUSINESS_RULES.md § 6 names), not system-derived, this sprint.
+//
+// `resultingEnrollmentId` is nullable in the illustrative shape (a
+// TRANSFERRED_OUT/WITHDRAWN outcome has no "next enrollment"); every
+// outcome this sprint's own service actually writes (PROMOTED/DETAINED)
+// always sets it — enforced in the service layer, not the schema, since
+// the schema-level constraint can't express "required for two enum
+// values, forbidden for the other two."
+//
+// No PromotionRecord lifecycle/status field — a considered omission, not
+// an oversight. docs/database/TRANSACTION_BOUNDARIES.md § 2's own
+// "Promotion decision" row describes exactly one transaction —
+// PromotionRecord (create) + Enrollment (create) + AuditLog x2 — as the
+// entire unit of work. There is no persisted "draft recommendation" or
+// "reviewed, not yet finalized" row: a PromotionRecord does not exist
+// until the moment a human decision is finalized, at which point it is
+// created complete and permanent, mirroring TransferCertificate's own
+// "no soft delete, permanent record" precedent (DOMAIN_MODEL.md § 6.3/
+// § 6.4) exactly. The "workflow state" Phase 4 of this sprint's own task
+// asked about (recommendation -> decision -> override -> finalization)
+// lives entirely in the Promotion Workspace's own request/response cycle
+// (nothing held open in the database between a Principal viewing a
+// recommendation and clicking Finalize) — not in a mutable database row.
+
+enum PromotionOutcome {
+  PROMOTED
+  DETAINED
+  TRANSFERRED_OUT
+  WITHDRAWN
+
+  @@map("promotion_outcome")
+}
+
+enum PromotionBasis {
+  NO_DETENTION_POLICY
+  EXAM_RESULT
+  RE_EXAM
+
+  @@map("promotion_basis")
+}
+
+model PromotionRecord {
+  id                    String           @id @default(cuid())
+  schoolId              String           @map("school_id")
+  school                School           @relation(fields: [schoolId], references: [schoolId])
+  studentId             String           @map("student_id")
+  student               Student          @relation(fields: [studentId], references: [id])
+  sourceEnrollmentId    String           @unique @map("source_enrollment_id")
+  sourceEnrollment      Enrollment       @relation("PromotionSourceEnrollment", fields: [sourceEnrollmentId], references: [id])
+  resultingEnrollmentId String?          @unique @map("resulting_enrollment_id")
+  resultingEnrollment   Enrollment?      @relation("PromotionResultingEnrollment", fields: [resultingEnrollmentId], references: [id])
+  outcome               PromotionOutcome
+  basis                 PromotionBasis
+  decidedByUserId       String           @map("decided_by_user_id")
+  createdAt             DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([schoolId, outcome])
+  @@map("promotion_records")
 }
 
 // --- Migration 008: Framework Configuration ---------------------------------

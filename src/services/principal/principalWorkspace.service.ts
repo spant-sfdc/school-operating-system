@@ -193,6 +193,7 @@ async function buildQuickActions(): Promise<PrincipalQuickActionDTO[]> {
     { id: "configuration", label: "Configuration", href: "/admin/configuration" },
     { id: "imports", label: "Imports", href: "/admin/imports" },
     { id: "results", label: "Results", href: "/admin/examinations" },
+    { id: "promotions", label: "Promotions", href: "/admin/promotions" },
     { id: "audit", label: "Audit", href: "/admin/audit" },
     { id: "users", label: "Users", href: "/admin/users" },
     { id: "system-setup", label: "System Setup", href: "/admin/setup" },

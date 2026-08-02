@@ -4,6 +4,18 @@ import { notFound } from "next/navigation";
 import { requirePermission, canViewStudents } from "@/lib/authorization";
 import { getStudentAcademicHistory } from "@/services/student/academicHistory.service";
 
+const PROMOTION_OUTCOME_LABEL: Record<string, string> = {
+  PROMOTED: "Promoted",
+  DETAINED: "Detained",
+  TRANSFERRED_OUT: "Transferred Out",
+  WITHDRAWN: "Withdrawn",
+};
+const PROMOTION_BASIS_LABEL: Record<string, string> = {
+  NO_DETENTION_POLICY: "No-Detention Policy",
+  EXAM_RESULT: "Exam Result",
+  RE_EXAM: "Re-Examination",
+};
+
 // Academic History Workspace (Sprint E10) — the destination of Student
 // 360's own "View Academic History" Quick Action. A read-composition page
 // over getStudentAcademicHistory() (src/services/student/academicHistory.service.ts)
@@ -50,6 +62,14 @@ export default async function StudentAcademicHistoryPage({
                     {year.schoolClassName} - {year.sectionName} · Roll No. {year.rollNumber}
                   </span>
                 </div>
+
+                {year.promotion ? (
+                  <p className="text-muted-foreground mb-3 text-xs">
+                    {PROMOTION_OUTCOME_LABEL[year.promotion.outcome] ?? year.promotion.outcome} (
+                    {PROMOTION_BASIS_LABEL[year.promotion.basis] ?? year.promotion.basis}) —{" "}
+                    {new Date(year.promotion.decidedAt).toLocaleDateString()}
+                  </p>
+                ) : null}
 
                 <div className="flex flex-col gap-4">
                   {year.examinations.map((examination) => (

@@ -24,6 +24,19 @@ export interface AcademicHistoryExaminationDTO {
   subjects: AcademicHistorySubjectResultDTO[];
 }
 
+// Sprint E11 — the promotion decision that concluded this year's
+// Enrollment, if one has been finalized yet. Deliberately minimal: only
+// the decision metadata (outcome/basis/who/when) — the *destination*
+// (target class/section) is read directly off next year's own Enrollment
+// row (already the top of the *next* AcademicHistoryYearDTO in this same
+// list), never duplicated here. See promotionRecord.dto.ts for the full
+// PromotionRecordDTO shape this is intentionally a narrower slice of.
+export interface AcademicHistoryPromotionDTO {
+  outcome: "PROMOTED" | "DETAINED" | "TRANSFERRED_OUT" | "WITHDRAWN";
+  basis: "NO_DETENTION_POLICY" | "EXAM_RESULT" | "RE_EXAM";
+  decidedAt: string;
+}
+
 export interface AcademicHistoryYearDTO {
   academicYearId: string;
   academicYearLabel: string;
@@ -31,6 +44,7 @@ export interface AcademicHistoryYearDTO {
   sectionName: string;
   rollNumber: string;
   examinations: AcademicHistoryExaminationDTO[];
+  promotion: AcademicHistoryPromotionDTO | null;
 }
 
 export interface StudentAcademicHistoryDTO {

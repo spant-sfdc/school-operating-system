@@ -12,6 +12,35 @@ Nothing yet.
 
 ---
 
+## [0.43.0] — 2026-08-02 — Sprint E11: Promotion Engine & Academic-Year Transition
+
+The end-of-year promotion decision workflow: Published Academic Record → Principal/Admin Review → Promote/Detain (with a required rationale) → Finalize → next-year Enrollment created, historical Enrollment preserved untouched. See [D-057](./DECISIONS.md#d-057--sprint-e11-promotion-engine--academic-year-transition-promotionrecord-built-almost-exactly-to-docsdomaindatabase_schemamds-own-already-published-illustrative-shape-no-persisted-recommendation-column--the-systems-own-suggestion-always-manual-review-required-since-no-school-has-ever-configured-a-real-promotionpolicy-is-never-written-anywhere-only-computed-fresh-and-displayed-one-atomic-transaction-per-student-never-a-batch-transaction-matching-transaction_boundariesmds-own-already-documented-boundary-target-classsection-selection-is-entirely-manual--no-sortorder-based-or-string-parsed-next-class-inference).
+
+### Added
+
+- `prisma/schema.prisma` — Migration 011: `PromotionRecord` model + `PromotionOutcome`/`PromotionBasis` enums. Applied for real to the live Neon database.
+- `src/repositories/promotionRecord/` — `findPromotionRecordBySourceEnrollment()`, `findPromotionRecordById()`, `listPromotionRecordsBySourceEnrollments()`, `listPromotionRecordsForStudent()`, `createPromotionRecord()`.
+- `src/lib/validations/promotion.ts` — Zod schema for the finalize-decision input.
+- `src/services/promotion/` — `computePromotionRecommendation()` (always `MANUAL_REVIEW_REQUIRED` today, since no school has a configured `promotionPolicy`); `getPromotionReviewWorkspace()`; `finalizePromotionDecision()` (the atomic, per-student primitive).
+- `src/lib/authorization/permissions.ts` — `canManagePromotions()`.
+- `src/app/admin/promotions/page.tsx` (Promotion Home), `src/app/admin/promotions/[schoolClassId]/[sectionId]/{page.tsx,actions.ts,PromotionReviewGrid.tsx}` (Review Workspace + bulk Finalize).
+
+### Updated
+
+- `src/services/student/academicHistory.{dto,service}.ts` — each year now carries the `PromotionRecord` that concluded it, if any (one bulk query, no N+1).
+- `src/app/admin/students/[id]/academic-history/page.tsx`, `src/app/teacher/students/[id]/academic-history/page.tsx` — render the promotion transition line per year.
+- `src/services/principal/principalWorkspace.service.ts` — new "Promotions" Quick Action.
+- `src/repositories/academicYear/academicYear.repository.ts` — `findAcademicYearById()`.
+
+### Verified
+
+- 30 direct-service-call scenarios against real seeded data plus a synthetic target Academic Year/Sections: workspace loading, historical Enrollment unchanged before/after, invalid targets rejected, cross-class/section mismatch rejected, promotion to a different class+section, a genuine concurrent double-click race resolving to exactly one success with zero duplicates, existing-target-enrollment conflict rejected, Repeat-Same-Class supported, Academic History reflecting the transition with zero special-case logic, Student 360/`Student.status` unaffected — all passed.
+- Regression: 15 routes all correctly redirected unauthenticated (307, no 500s); `canManagePromotions` confirmed `false` for Teacher.
+- `pnpm exec tsc --noEmit`, `pnpm run lint`, `pnpm run format:check`, `pnpm run build`, `pnpm exec prisma validate`, `pnpm exec prisma migrate status` all pass clean.
+- Repository/Service boundary greps: zero repository-imports-repository violations; no direct Prisma model access outside repositories (only `$transaction`).
+
+---
+
 ## [0.42.0] — 2026-08-02 — Sprint E10: Student Academic History & Published Results Workspace
 
 The authoritative, internal-staff-only academic-history experience — Student identity → Enrollment history → Published examinations → Subject results, using ONLY published results. No new database table. See [D-056](./DECISIONS.md#d-056--sprint-e10-student-academic-history-zero-new-database-tables--enrollment--marksrecord--examinationstatus--published-already-fully-answer-the-question-examinationstatus--published-alone-not-a-second-markssubmissionstatus--approved-check-is-the-one-authoritative-boundary-grade-is-honestly-unavailable-not-fabricated-since-no-schema-path-connects-gradescale-to-any-examination).

@@ -216,3 +216,17 @@ export function canReviewSubmissions(subject: AuthorizationSubject): boolean {
 export function canPublishExaminationResults(subject: AuthorizationSubject): boolean {
   return subject.accessLevel === "ADMIN";
 }
+
+// Promotion Engine (Sprint E11, Epic E) — per PERMISSION_MATRIX.md § 4:
+// "PromotionRecord | Admin: CRUD | Teacher: R (assigned students,
+// read-only recommendation input)... Admin owns the decision." Teacher's
+// own documented "R" is a future, unbuilt read surface (no Teacher-facing
+// Promotion UI exists this sprint) — this permission gates every write
+// path (review, decide, finalize) Admin-only, matching every other
+// administrative capability in this file; Principal and Administrator are
+// both `accessLevel: ADMIN` Role rows (D-028/D-029), so no further
+// distinction is needed, the same reasoning canViewResultReview() above
+// already established.
+export function canManagePromotions(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN";
+}

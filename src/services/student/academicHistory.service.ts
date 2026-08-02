@@ -1,6 +1,7 @@
 import { findStudentById } from "@/repositories/student";
 import { listEnrollmentsByStudent } from "@/repositories/enrollment";
 import { listPublishedMarksRecordsByEnrollments } from "@/repositories/marksRecord";
+import { listPromotionRecordsForStudent } from "@/repositories/promotionRecord";
 import type {
   StudentAcademicHistoryDTO,
   AcademicHistoryYearDTO,
@@ -23,10 +24,11 @@ import type {
  * row (class/section/roll number), not a mutable `Student.currentClass`
  * field, which does not and should not exist.
  *
- * Performance (Q15): exactly two queries total, regardless of how many
+ * Performance (Q15): exactly three queries total, regardless of how many
  * years/examinations/subjects a student has — one for their enrollments,
- * one for every published MarksRecord across all of them. No query is
- * issued per year, per examination, or per subject.
+ * one for every published MarksRecord across all of them, one for every
+ * PromotionRecord (Sprint E11's own addition — bulk, not per-year). No
+ * query is issued per year, per examination, or per subject.
  */
 export async function getStudentAcademicHistory(
   studentId: string,
@@ -38,7 +40,13 @@ export async function getStudentAcademicHistory(
   }
 
   const enrollments = await listEnrollmentsByStudent(studentId);
-  const records = await listPublishedMarksRecordsByEnrollments(enrollments.map((e) => e.id));
+  const [records, promotionRecords] = await Promise.all([
+    listPublishedMarksRecordsByEnrollments(enrollments.map((e) => e.id)),
+    listPromotionRecordsForStudent(studentId),
+  ]);
+  const promotionBySourceEnrollmentId = new Map(
+    promotionRecords.map((p) => [p.sourceEnrollmentId, p]),
+  );
 
   const recordsByEnrollmentId = new Map<string, typeof records>();
   for (const record of records) {
@@ -97,6 +105,8 @@ export async function getStudentAcademicHistory(
         };
       });
 
+    const promotion = promotionBySourceEnrollmentId.get(enrollment.id);
+
     return {
       academicYearId: enrollment.academicYearId,
       academicYearLabel: enrollment.academicYear.label,
@@ -104,6 +114,13 @@ export async function getStudentAcademicHistory(
       sectionName: enrollment.section.name,
       rollNumber: enrollment.rollNumber,
       examinations,
+      promotion: promotion
+        ? {
+            outcome: promotion.outcome,
+            basis: promotion.basis,
+            decidedAt: promotion.createdAt.toISOString(),
+          }
+        : null,
     };
   });
 
