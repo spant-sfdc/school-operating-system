@@ -365,8 +365,9 @@ model SchoolClass {
   createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  sections     Section[]
-  examinations Examination[]
+  sections      Section[]
+  examinations  Examination[]
+  classSubjects ClassSubject[]
 
   @@index([schoolId, name])
   @@map("school_classes")
@@ -405,9 +406,38 @@ model Subject {
 
   teacherAssignments   TeacherAssignment[]
   examSubjectSchedules ExamSubjectSchedule[]
+  classSubjects        ClassSubject[]
 
   @@index([schoolId, name])
   @@map("subjects")
+}
+
+// Sprint E13 — the `ClassSubject` join Sprint 2's own D-030 explicitly
+// deferred ("ClassSubject deferred", not forgotten) as out of that
+// sprint's scope, closed now that Academic Administration's own
+// explicitly-required features (Subject Management's own "Class
+// assignment," Structure Health's own "Classes missing subjects" check)
+// genuinely need a real many-to-many relationship — indirect signals
+// (ExamSubjectSchedule, which conflates "subject taught" with "subject
+// examined") cannot answer "which subjects does this class study"
+// correctly. School-permanent, not year-scoped — matches SchoolClass's
+// and Subject's own shared permanence (a class's subject list is a
+// structural fact, independent of which academic year), never given an
+// `academicYearId` (Sprint E13's own Q5 reconfirms Subject/ClassSubject
+// stay entirely un-year-scoped, unlike ExamTerm/GradeScale's own
+// deliberately different per-year-or-permanent-configuration shapes).
+model ClassSubject {
+  id            String      @id @default(cuid())
+  schoolClassId String      @map("school_class_id")
+  schoolClass   SchoolClass @relation(fields: [schoolClassId], references: [id])
+  subjectId     String      @map("subject_id")
+  subject       Subject     @relation(fields: [subjectId], references: [id])
+  deletedAt     DateTime?   @map("deleted_at") @db.Timestamptz(3)
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([schoolClassId, subjectId])
+  @@map("class_subjects")
 }
 
 // --- Migration 004: Student Foundation --------------------------------------

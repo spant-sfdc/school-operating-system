@@ -12,6 +12,41 @@ Nothing yet.
 
 ---
 
+## [0.45.0] — 2026-08-08 — Sprint E13: Academic Administration Engine
+
+The control-center bounded context every other academic module depends on: Academic Year, Class, Section, and Subject Management, plus deterministic Structure Health checks, at `/admin/settings`. A brand-new school can now be configured entirely from the product, with zero database changes. See [D-059](./DECISIONS.md#d-059--sprint-e13-academic-administration-engine-classsubject-closes-sprint-2s-own-named-d-030-deferral--justified-only-now-that-structure-healths-classes-missing-subjects-check-genuinely-needs-a-real-many-to-many-relationship-academicyeariscurrent-operational-and-status-bookkeeping-confirmed-as-two-independent-dimensions-never-conflated-a-real-cross-school-authorization-gap-was-found-and-fixed-before-merge-not-after-promotions-own-target-year-iscurrentstatus-validation-is-named-as-a-genuine-unfixed-gap-not-silently-patched-out-of-scope).
+
+### Added
+
+- `prisma/schema.prisma` — Migration `20260807182516_academic_administration`: `ClassSubject` model (closes Sprint 2's own D-030 "deferred, not forgotten" join table). Applied for real to the live Neon database.
+- `src/repositories/classSubject/` (new) — `findClassSubject()`, `listSubjectsForClass()`, `listClassesForSubject()`, `countSubjectsByClass()`, `createClassSubject()`, `deactivateClassSubject()`, `reactivateClassSubject()`.
+- `src/repositories/{schoolClass,section,subject}/*.repository.ts` — update/deactivate/reactivate functions each, plus `listAllSchoolClassesBySchool()`/`listAllSectionsByClassAndYear()`/`listAllSubjectsBySchool()` (including inactive, for the new Directory pages).
+- `src/repositories/academicYear/academicYear.repository.ts` — `createAcademicYear()` (fails on duplicate label, distinct from the seed-time `upsertAcademicYear()`).
+- `src/services/academic/academicYear.service.ts` (new) — `createAcademicYear()`, `updateAcademicYear()`, `activateAcademicYear()` (atomic two-row `isCurrent` flip), `setAcademicYearStatus()`.
+- `src/services/academic/academic.service.ts` — `createStandaloneSection()`, `updateSchoolClass()`/`deactivateSchoolClass()`/`reactivateSchoolClass()`, `updateSection()`/`deactivateSection()`/`reactivateSection()`, `updateSubject()`/`deactivateSubject()`/`reactivateSubject()`, `assignSubjectToClasses()` (reconciliation), `listSubjectsForSchoolClass()`.
+- `src/services/structureHealth/` (new) — `getStructureHealth()`: deterministic checks (no AI) for missing Academic Year, classes with no sections/subjects/GradeScale, sections with no class/subject teacher, empty sections.
+- `src/lib/authorization/permissions.ts` — `canManageAcademicStructure()` (Admin-only), `canViewAcademicStructure()` (Admin + Teacher, reserved for a future Teacher-facing read view).
+- `/admin/settings` (Home — Structure Health, Current Academic Year, Quick Links), `/admin/settings/academic-years` (Create/Edit/Activate/Close-Reopen), `/admin/settings/classes` + `/admin/settings/classes/[id]` (Directory, Create, Edit, Deactivate/Reactivate, Sections, Subjects, GradeScale assignment), `/admin/settings/subjects` (Directory, Create, Edit, Deactivate/Reactivate, Class assignment).
+
+### Updated
+
+- `src/services/principal/principalWorkspace.service.ts` — one new Structure Health alert, one new "Academic Administration" Quick Action; no other change.
+- `src/services/examination/gradeScale.service.ts`'s `assignGradeScaleToSchoolClass()` (Sprint E12, unchanged) — first real Admin UI built for it, on the new Class Detail page.
+- `docs/ROUTES.md` — `/admin/settings` and its four sub-routes marked Built.
+
+### Fixed
+
+- A real cross-school authorization gap in `createStandaloneSection()`, found during this sprint's own security review and fixed before merge — it took a raw `schoolClassId` with no `schoolId` ownership check, unlike every sibling function. Now requires and verifies `schoolId`, matching `updateSection()`/`updateSchoolClass()`/`assignSubjectToClasses()`.
+
+### Verified
+
+- 40 direct-service-call scenarios against the real seeded school plus synthetic Academic Year/Class/Section/Subject/ClassSubject/GradeScale fixtures and a second synthetic School (for cross-tenant rejection testing): Create/duplicate-rejected/invalid-date-rejected/Activate/previous-year-auto-deactivated/exactly-one-current/Edit/cross-school-rejected/Close/Reopen for Academic Year; Create/Edit/cross-school-rejected for Class; Create/cross-school-rejected/Edit for Section; Create/Edit/assign/un-assign for Subject; assign/clear GradeScale; Structure Health correctness; Principal Workspace composition; Deactivate/Reactivate for all three entities — all passed.
+- Regression: 26 routes (every new `/admin/settings/*` route including an invalid Class id, every pre-existing Admin/Teacher/public route) all correctly redirected unauthenticated (307) or returned 200 (public), zero 500s.
+- `pnpm exec tsc --noEmit`, `pnpm exec eslint .`, `pnpm exec prettier --check .`, `pnpm run build`, `pnpm exec prisma validate`, `pnpm exec prisma migrate status` all pass clean.
+- All synthetic data (two Academic Years, two Classes, one Section, one Subject, one GradeScale, one second School) cleaned up, confirmed zero residue by direct re-query after cleanup.
+
+---
+
 ## [0.44.0] — 2026-08-02 — Sprint E12: Report Card Engine & Academic Result Presentation
 
 The formal academic-output layer: Published Results → Report Card Data → Academic Summary → Printable Report Card → Historical Report Card Access. An OUTPUT/PROJECTION over already-authoritative data, never a second academic record system. See [D-058](./DECISIONS.md#d-058--sprint-e12-report-card-engine--academic-result-presentation-reportcard-built-as-a-persisted-snapshot-per-docsdomaindomain_modelmd--86s-own-already-published-reasoning-should-not-silently-change-if-a-mark-is-corrected-afterward--genuinely-satisfying-this-sprints-own-prove-persistence-is-required-bar-not-an-exception-to-it-schoolclassgradescaleid-closes-sprint-e10s-own-named-gradescale-gap-the-assignment-dimension-business_rulesmd--5-already-specified-overall-percentage-is-now-legitimately-computable-reversing-sprint-e10s-own-more-conservative-conclusion-on-new-documentary-evidence-reporting_modelmd--3-sprint-e10-had-not-yet-read).

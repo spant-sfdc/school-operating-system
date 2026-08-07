@@ -249,3 +249,31 @@ export function canViewReportCards(subject: AuthorizationSubject): boolean {
 export function canManageReportCards(subject: AuthorizationSubject): boolean {
   return subject.accessLevel === "ADMIN";
 }
+
+// Academic Administration Engine (Sprint E13, Epic E) — per
+// docs/domain/PERMISSION_MATRIX.md § 1: "Class / Section | Admin: CRUD |
+// Teacher: R (assigned only)" and "Subject / ClassSubject | Admin: CRUD |
+// Teacher: R". AcademicYear has no row of its own in that table but is
+// the same class of school-wide structural configuration as System Setup
+// (canManageSystemSetup, D-039) — Admin-only, no Teacher read surface,
+// matching this sprint's own explicit Role Model ("Teachers must never
+// create or modify academic structure"). Kept as one function, not
+// split per-entity (AcademicYear/Class/Section/Subject/ClassSubject) —
+// unlike Student/Attendance/Marks, every one of these entities shares the
+// identical Admin-CRUD/Teacher-R shape with no per-entity divergence, so
+// a single canManageAcademicStructure() names the whole capability
+// without inventing five identical functions.
+export function canManageAcademicStructure(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN";
+}
+
+// The read counterpart — Class/Section/Subject "R (assigned only)"/"R"
+// for Teacher, per the same PERMISSION_MATRIX.md § 1 rows above. Not
+// currently wired to any Teacher-facing page this sprint (no Teacher
+// Academic Administration UI is in scope), reserved the same way
+// canViewExaminations() was reserved ahead of Sprint E8's own Marks Entry
+// workspace — a future Teacher-facing "my classes' structure" read view
+// is one permission check away, not a new permission to invent then.
+export function canViewAcademicStructure(subject: AuthorizationSubject): boolean {
+  return subject.accessLevel === "ADMIN" || subject.accessLevel === "TEACHER";
+}

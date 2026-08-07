@@ -16,9 +16,33 @@ export async function listSubjectsBySchool(schoolId: string) {
   });
 }
 
+// Sprint E13 — the Subject Directory's own listing, same reasoning as
+// listAllSchoolClassesBySchool() (schoolClass.repository.ts).
+export async function listAllSubjectsBySchool(schoolId: string) {
+  return db.subject.findMany({ where: { schoolId }, orderBy: { name: "asc" } });
+}
+
 export async function createSubject(
   input: Prisma.SubjectCreateInput,
   tx: Prisma.TransactionClient = db,
 ) {
   return tx.subject.create({ data: input });
+}
+
+// Sprint E13 — edit (name, code) and deactivate/reactivate, matching
+// every other entity's own "deactivate, never delete" precedent.
+export async function updateSubject(
+  subjectId: string,
+  input: Prisma.SubjectUpdateInput,
+  tx: Prisma.TransactionClient = db,
+) {
+  return tx.subject.update({ where: { id: subjectId }, data: input });
+}
+
+export async function deactivateSubject(subjectId: string, tx: Prisma.TransactionClient = db) {
+  return tx.subject.update({ where: { id: subjectId }, data: { deletedAt: new Date() } });
+}
+
+export async function reactivateSubject(subjectId: string, tx: Prisma.TransactionClient = db) {
+  return tx.subject.update({ where: { id: subjectId }, data: { deletedAt: null } });
 }

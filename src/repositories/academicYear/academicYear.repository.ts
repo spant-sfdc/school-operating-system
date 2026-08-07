@@ -43,3 +43,17 @@ export async function upsertAcademicYear(
     create: input,
   });
 }
+
+// Sprint E13 — Academic Administration's own "prepare next year" create,
+// distinct from upsertAcademicYear() (Sprint 0's own seed-time
+// get-or-create): Create should genuinely fail on a duplicate label, not
+// silently return the existing row — the semantic every other manual
+// "Create X" flow in this codebase already uses (createSchoolClass(),
+// createSection(), createSubject()). Deliberately no `include` — matches
+// this codebase's own create()+include decomposition avoidance (D-046).
+export async function createAcademicYear(
+  input: Prisma.AcademicYearCreateInput,
+  tx: Prisma.TransactionClient = db,
+) {
+  return tx.academicYear.create({ data: input });
+}

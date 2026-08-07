@@ -9,6 +9,7 @@ import { getConfigurationSummary } from "@/services/configuration";
 import { listImportBatches } from "@/services/import";
 import { searchStudentDirectory } from "@/services/student/studentDirectory.service";
 import { getResultReviewDashboard } from "@/services/resultReview";
+import { getStructureHealth } from "@/services/structureHealth";
 import {
   deriveConfiguredStatus,
   type PrincipalWorkspaceDTO,
@@ -107,6 +108,7 @@ function buildAlerts(input: {
   failedImportCount: number;
   resultsAwaitingReview: number;
   resultsReadyToPublish: number;
+  structureIssueCount: number;
 }): OperationalAlertDTO[] {
   const alerts: OperationalAlertDTO[] = [];
 
@@ -159,6 +161,17 @@ function buildAlerts(input: {
       message: `${input.resultsReadyToPublish} examination(s) are fully approved and ready to publish.`,
     });
   }
+  // Sprint E13 — only surfaced once a current Academic Year exists; a
+  // missing year is already the "no-academic-year" alert above, and
+  // getStructureHealth() itself folds "year not ACTIVE" into this same
+  // count, so this stays a single line, not a second overlapping alert.
+  if (input.hasAcademicYear && input.structureIssueCount > 0) {
+    alerts.push({
+      id: "academic-structure-incomplete",
+      severity: "warning",
+      message: `${input.structureIssueCount} Academic Structure configuration gap(s) found — see Academic Administration.`,
+    });
+  }
   // A deliberate placeholder, per this sprint's own "deterministic alerts
   // only... audit anomaly placeholder" instruction — no anomaly-detection
   // logic exists to back this, and none is being invented here.
@@ -187,6 +200,7 @@ function buildAlerts(input: {
 // would itself be an undiscussed redesign.
 async function buildQuickActions(): Promise<PrincipalQuickActionDTO[]> {
   return [
+    { id: "academic-administration", label: "Academic Administration", href: "/admin/settings" },
     { id: "students", label: "Students", href: "/admin/students" },
     { id: "teachers", label: "Teachers", href: "/admin/teachers" },
     { id: "attendance", label: "Attendance", href: "#attendance-overview" },
@@ -231,6 +245,8 @@ export async function getPrincipalWorkspace(schoolId: string): Promise<Principal
   const resultReviewDashboard = await getResultReviewDashboard(schoolId);
   const resultsOverview = buildResultsOverview(resultReviewDashboard);
 
+  const structureHealth = await getStructureHealth(schoolId);
+
   const [totalResult, activeResult, recentResult, failedBatches, partialBatches] =
     await Promise.all([
       currentAcademicYear
@@ -266,6 +282,7 @@ export async function getPrincipalWorkspace(schoolId: string): Promise<Principal
     failedImportCount: failedBatches.total + partialBatches.total,
     resultsAwaitingReview: resultsOverview.awaitingReviewCount,
     resultsReadyToPublish: resultsOverview.readyToPublishCount,
+    structureIssueCount: structureHealth.issueCount,
   });
 
   return {
